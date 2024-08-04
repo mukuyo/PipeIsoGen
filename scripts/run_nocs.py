@@ -63,7 +63,7 @@ def run_one_scene_one_model(scene_id,model_name,cfg1,port):
   cfg['mask_dir'] = f'{code_dir}/../masks/transductive_vos.nocs.maskrcnn_realtrain/scene_{scene_id}_model_{model_name}'
   cfg['model_name'] = model_name
   cfg['debug_dir'] = cur_out_dir
-  cfg['LOG'] = 0
+  cfg['LOG'] = 3
   cfg['port'] = port
   tmp_config_dir = '/tmp/config_model_{}_scene{}.yml'.format(model_name,scene_id)
   with open(tmp_config_dir,'w') as ff:

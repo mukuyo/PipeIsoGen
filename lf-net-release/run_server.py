@@ -18,7 +18,8 @@ from common.tf_train_utils import get_optimizer
 from imageio import imread, imsave
 from inference import *
 from utils import embed_breakpoint, print_opt
-
+# import tensorflow.compat.v1 as tf
+# tf.disable_v2_behavior()
 
 MODEL_PATH = './models'
 if MODEL_PATH not in sys.path:
