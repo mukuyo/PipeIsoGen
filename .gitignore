@@ -1,8 +1,8 @@
-masks/
 build/
 *.pyc
 *.pth*
 *.pkl
 lf-net-release/release/models
 .vscode/
+.python_version
 data/
