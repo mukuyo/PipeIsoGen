@@ -2,6 +2,14 @@ import pyrealsense2 as rs
 import numpy as np
 import cv2
 import time
+import os
+
+directry_name = '08_05/'
+parent_folder = 'data/capture/'
+subfolder_path = os.path.join(parent_folder, directry_name)
+os.makedirs(subfolder_path, exist_ok=True)
+os.makedirs(parent_folder+directry_name+'rgb/', exist_ok=True)
+os.makedirs(parent_folder+directry_name+'depth/', exist_ok=True)
 
 def get_camera_matrix(intrinsics):
     fx = intrinsics.fx
@@ -40,8 +48,8 @@ depth_camera_matrix = get_camera_matrix(depth_intrinsics)
 color_camera_matrix = get_camera_matrix(color_intrinsics)
 
 timestamp = int(time.time())
-depth_params_filename = f'depth_camera_matrix_{timestamp}.txt'
-color_params_filename = f'color_camera_matrix_{timestamp}.txt'
+depth_params_filename = f'data/capture/' + directry_name + 'depth_camera_matrix.txt'
+color_params_filename = f'data/capture/' + directry_name + 'color_camera_matrix.txt'
 
 np.savetxt(depth_params_filename, depth_camera_matrix, fmt='%f')
 np.savetxt(color_params_filename, color_camera_matrix, fmt='%f')
@@ -49,6 +57,10 @@ np.savetxt(color_params_filename, color_camera_matrix, fmt='%f')
 print(f'深度カメラ行列を保存しました: {depth_params_filename}')
 print(f'カラーカメラ行列を保存しました: {color_params_filename}')
 
+# ノイズ除去の閾値
+NOISE_THRESHOLD = 10000  # ここで閾値を設定
+
+count = 0
 try:
     while True:
         frames = pipeline.wait_for_frames()
@@ -58,27 +70,28 @@ try:
         depth_frame = aligned_frames.get_depth_frame()
         color_frame = aligned_frames.get_color_frame()
         
-        if not depth_frame or not color_frame:
-            continue
-        
         depth_image = np.asanyarray(depth_frame.get_data())
         color_image = np.asanyarray(color_frame.get_data())
         
-        depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
+        # ノイズを黒にするための処理
+        depth_image[depth_image > NOISE_THRESHOLD] = 0  # 閾値以上の深度値を黒に設定
         
-        images = np.hstack((color_image, depth_colormap))
+        # 深度画像を3次元に変換
+        depth_image_3d = cv2.cvtColor(depth_image, cv2.COLOR_GRAY2BGR)
+        
+        images = np.hstack((color_image, depth_image_3d))
         
         cv2.imshow('Aligned Images', images)
         
         key = cv2.waitKey(1)
         
         if key & 0xFF == ord('s'):
-            timestamp = int(time.time())
-            color_filename = f'rgb_{timestamp}.png'
-            depth_filename = f'depth_{timestamp}.png'
+            color_filename = f'data/capture/' + directry_name + 'rgb/' + str(count) + '.png'
+            depth_filename = f'data/capture/' + directry_name + 'depth/' + str(count) + '.png'
             cv2.imwrite(color_filename, color_image)
-            cv2.imwrite(depth_filename, depth_colormap)
-            print(f'保存しました: {color_filename} および {depth_filename}')
+            cv2.imwrite(depth_filename, depth_image)
+            print(f'保存しました: {color_filename} と {depth_filename}')
+            count += 1
         
         elif key & 0xFF == ord('q'):
             break
