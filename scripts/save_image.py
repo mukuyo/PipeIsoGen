@@ -75,11 +75,19 @@ try:
         
         # ノイズを黒にするための処理
         depth_image[depth_image > NOISE_THRESHOLD] = 0  # 閾値以上の深度値を黒に設定
-        
+
+        # 深度画像を反転（近いほど白く、遠いほど黒く）
+        max_depth = np.max(depth_image)
+        min_depth = np.min(depth_image)
+        inverted_depth_image = max_depth - depth_image
+
+        # データを取得できないピクセル（値が0）を黒に設定
+        inverted_depth_image[depth_image == 0] = 0
+
         # 深度画像を3次元に変換
-        depth_image_3d = cv2.cvtColor(depth_image, cv2.COLOR_GRAY2BGR)
+        inverted_depth_image_3d = cv2.cvtColor(inverted_depth_image, cv2.COLOR_GRAY2BGR)
         
-        images = np.hstack((color_image, depth_image_3d))
+        images = np.hstack((color_image, inverted_depth_image_3d))
         
         cv2.imshow('Aligned Images', images)
         
@@ -89,7 +97,7 @@ try:
             color_filename = f'data/capture/' + directry_name + 'rgb/' + str(count) + '.png'
             depth_filename = f'data/capture/' + directry_name + 'depth/' + str(count) + '.png'
             cv2.imwrite(color_filename, color_image)
-            cv2.imwrite(depth_filename, depth_image)
+            cv2.imwrite(depth_filename, inverted_depth_image)
             print(f'保存しました: {color_filename} と {depth_filename}')
             count += 1
         

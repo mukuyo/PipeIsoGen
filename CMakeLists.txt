@@ -3,6 +3,10 @@ project(BundleTrack)
 
 
 set(CMAKE_BUILD_TYPE Release)
+# Set the CMake policy for CMP0072
+
+# Set the preference for OpenGL libraries
+set(OpenGL_GL_PREFERENCE GLVND)  # Use GLVND libraries
 add_compile_options(-std=c++14 -fpermissive -fPIC -g)
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -Xcompiler;-fPIC;-gencode arch=compute_61,code=sm_61;-gencode arch=compute_75,code=sm_75;-gencode arch=compute_86,code=sm_86;-O3;-std=c++11;-use_fast_math;--default-stream per-thread)
 
