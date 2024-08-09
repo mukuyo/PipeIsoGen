@@ -4,7 +4,7 @@ import cv2
 import time
 import os
 
-directry_name = '08_05/'
+directry_name = '08_06/'
 parent_folder = 'data/capture/'
 subfolder_path = os.path.join(parent_folder, directry_name)
 os.makedirs(subfolder_path, exist_ok=True)
@@ -70,7 +70,7 @@ try:
         depth_frame = aligned_frames.get_depth_frame()
         color_frame = aligned_frames.get_color_frame()
         
-        depth_image = np.asanyarray(depth_frame.get_data())
+        depth_image = np.asanyarray(depth_frame.get_data(), dtype=np.uint16)
         color_image = np.asanyarray(color_frame.get_data())
         
         # ノイズを黒にするための処理
