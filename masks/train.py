@@ -51,7 +51,7 @@ def target_transform(mask):
     return mask
 
 # Load dataset
-dataset = CustomDataset("data/mask/color", "data/mask/masks", transform=transform, target_transform=target_transform)
+dataset = CustomDataset("data/images/rgb", "data/images/masks", transform=transform, target_transform=target_transform)
 train_loader = DataLoader(dataset, batch_size=8, shuffle=True)
 
 # Load Deeplabv3 model
@@ -64,7 +64,7 @@ criterion = nn.BCEWithLogitsLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training loop
-num_epochs = 100
+num_epochs = 1000
 
 for epoch in range(num_epochs):
     model.train()
@@ -89,48 +89,7 @@ for epoch in range(num_epochs):
     print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss/len(train_loader)}")
 
 # Save the model
-torch.save(model.state_dict(), "deeplabv3_model.pth")
-
-# Prediction on a new image
-def predict_mask(image_path, model):
-    # Check if the file exists
-    if not os.path.isfile(image_path):
-        raise FileNotFoundError(f"Image file not found at: {image_path}")
-
-    # Read the image
-    image = cv2.imread(image_path)
-
-    # Check if the image was loaded correctly
-    if image is None:
-        raise ValueError(f"Failed to load image from path: {image_path}")
-
-    # Convert color format
-    original_size = (image.shape[1], image.shape[0])  # (width, height)
-    image_resized = cv2.resize(image, (256, 256))
-    image_resized = cv2.cvtColor(image_resized, cv2.COLOR_BGR2RGB)
-    image_tensor = transform(image_resized).unsqueeze(0).to("cuda" if torch.cuda.is_available() else "cpu")
-
-    # Set model to evaluation mode
-    model.eval()
-
-    # Make prediction
-    with torch.no_grad():
-        output = model(image_tensor)['out']
-        mask = torch.sigmoid(output).squeeze().cpu().numpy()
-        mask = (mask > 0.5).astype(np.uint8) * 255
-
-    # Resize mask to original image size
-    mask_resized = cv2.resize(mask, (original_size[0], original_size[1]), interpolation=cv2.INTER_NEAREST)
-
-    return mask_resized
-
-# Path to test image
-test_image_path = "data/mask/color/0.jpg"
-try:
-    predicted_mask = predict_mask(test_image_path, model)
-    cv2.imwrite("data/mask/predicted_mask.png", predicted_mask)
-except (FileNotFoundError, ValueError) as e:
-    print(f"Error: {e}")
+torch.save(model.state_dict(), "data/model/deeplabv3_model.pth")
 
 
 
