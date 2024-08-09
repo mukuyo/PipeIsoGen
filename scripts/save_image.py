@@ -43,14 +43,14 @@ temporal = rs.temporal_filter()
 hole_filling = rs.hole_filling_filter()
 
 # フィルターパラメータの設定
-decimation.set_option(rs.option.filter_magnitude, 2)
+decimation.set_option(rs.option.filter_magnitude, 1)
 spatial.set_option(rs.option.filter_magnitude, 2)
 spatial.set_option(rs.option.filter_smooth_alpha, 0.5)
 spatial.set_option(rs.option.filter_smooth_delta, 20)
 spatial.set_option(rs.option.holes_fill, 2)
 temporal.set_option(rs.option.filter_smooth_alpha, 0.4)
 temporal.set_option(rs.option.filter_smooth_delta, 20)
-temporal.set_option(rs.option.persistence_control, 3)
+# temporal.set_option(rs.option.persistence_control, 3)
 
 # カメラパラメータを取得して保存
 depth_stream = profile.get_stream(rs.stream.depth)
@@ -108,9 +108,9 @@ try:
         # 深度画像を3次元に変換
         inverted_depth_image_3d = cv2.cvtColor(inverted_depth_image, cv2.COLOR_GRAY2BGR)
         
-        images = np.hstack((color_image, inverted_depth_image_3d))
+        # images = np.hstack((color_image, inverted_depth_image_3d))
         
-        cv2.imshow('Aligned Images', images)
+        cv2.imshow('Aligned Images', inverted_depth_image)
         
         key = cv2.waitKey(1)
         
@@ -122,15 +122,15 @@ try:
             print(f'保存しました: {color_filename} と {depth_filename}')
             count += 1
         
-        # 自動保存機能
-        if time.time() - last_saved_time > SAVE_INTERVAL:
-            color_filename = f'data/capture/' + directry_name + 'rgb/' + str(count) + '.' + file_format
-            depth_filename = f'data/capture/' + directry_name + 'depth/' + str(count) + '.' + file_format
-            cv2.imwrite(color_filename, color_image)
-            cv2.imwrite(depth_filename, inverted_depth_image)
-            print(f'自動保存しました: {color_filename} と {depth_filename}')
-            last_saved_time = time.time()
-            count += 1
+        # # 自動保存機能
+        # if time.time() - last_saved_time > SAVE_INTERVAL:
+        #     color_filename = f'data/capture/' + directry_name + 'rgb/' + str(count) + '.' + file_format
+        #     depth_filename = f'data/capture/' + directry_name + 'depth/' + str(count) + '.' + file_format
+        #     cv2.imwrite(color_filename, color_image)
+        #     cv2.imwrite(depth_filename, inverted_depth_image)
+        #     print(f'自動保存しました: {color_filename} と {depth_filename}')
+        #     last_saved_time = time.time()
+        #     count += 1
         
         elif key & 0xFF == ord('q'):
             break
