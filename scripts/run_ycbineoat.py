@@ -50,7 +50,7 @@ def run_one_video(data_dir,model_name,model_dir,cfg1,port):
   cfg = copy.deepcopy(cfg1)
   name = data_dir.split('/')[-2]
 
-  cur_out_dir = '/tmp/BundleTrack/ycbineoat/{}/'.format(name)
+  cur_out_dir = '/home/th/ws/research/PipeIsoGen/data/output/'.format(name)
   os.system(f'mkdir -p {cur_out_dir}')
 
   cfg['data_dir'] = data_dir
