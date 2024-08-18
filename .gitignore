@@ -1,0 +1,11 @@
+**/data/*
+**/build/*
+**/log/*
+**/checkpoints/*
+**/bin/*
+
+**/__pycache__/*
+**/.vscode/*
+
+.python-version
+
