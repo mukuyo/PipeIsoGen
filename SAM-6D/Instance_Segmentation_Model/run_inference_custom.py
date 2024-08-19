@@ -46,44 +46,6 @@ inv_rgb_transform = T.Compose(
 
 detection_list = []
 
-# def visualize(rgb, detections, save_path="tmp.png"):
-#     img = rgb.copy()
-#     gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
-#     img = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
-#     colors = distinctipy.get_colors(len(detections))
-#     alpha = 0.33
-
-#     best_score = 0.
-#     for mask_idx, det in enumerate(detections):
-#         if best_score < det['score']:
-#             best_score = det['score']
-#             best_det = detections[mask_idx]
-
-#     mask = rle_to_mask(best_det["segmentation"])
-#     edge = canny(mask)
-#     edge = binary_dilation(edge, np.ones((2, 2)))
-#     obj_id = best_det["category_id"]
-#     temp_id = obj_id - 1
-
-#     r = int(255*colors[temp_id][0])
-#     g = int(255*colors[temp_id][1])
-#     b = int(255*colors[temp_id][2])
-#     img[mask, 0] = alpha*r + (1 - alpha)*img[mask, 0]
-#     img[mask, 1] = alpha*g + (1 - alpha)*img[mask, 1]
-#     img[mask, 2] = alpha*b + (1 - alpha)*img[mask, 2]   
-#     img[edge, :] = 255
-    
-#     img = Image.fromarray(np.uint8(img))
-#     img.save(save_path)
-#     prediction = Image.open(save_path)
-    
-#     # concat side by side in PIL
-#     img = np.array(img)
-#     concat = Image.new('RGB', (img.shape[1] + prediction.size[0], img.shape[0]))
-#     concat.paste(rgb, (0, 0))
-#     concat.paste(prediction, (img.shape[1], 0))
-#     return concat
-
 def visualize(rgb, detections, save_path="tmp.png"):
     img = rgb.copy()
     gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
@@ -92,7 +54,7 @@ def visualize(rgb, detections, save_path="tmp.png"):
     alpha = 0.33
 
     for det in detections:
-        if det['score'] >= 0.5:
+        if det['score'] >= 0.4:
             mask = rle_to_mask(det["segmentation"])
             edge = canny(mask)
             edge = binary_dilation(edge, np.ones((2, 2)))
@@ -298,6 +260,6 @@ if __name__ == "__main__":
             stability_score_thresh=args.stability_score_thresh, 
         )
     
-    save_path = f"{args.output_dir}/segmentation"
+    save_path = os.path.join(f"{args.output_dir}/segmentation", 'vis_ism_all.png')
     rgb = Image.open(args.rgb_path).convert("RGB")
-    vis_img = visualize_all(rgb, detection_list, f"{save_path}/vis_ism_all.png")
+    vis_img = visualize_all(rgb, detection_list, save_path)
