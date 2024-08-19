@@ -44,6 +44,8 @@ inv_rgb_transform = T.Compose(
         ]
     )
 
+detection_list = []
+
 # def visualize(rgb, detections, save_path="tmp.png"):
 #     img = rgb.copy()
 #     gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
@@ -107,14 +109,33 @@ def visualize(rgb, detections, save_path="tmp.png"):
 
     img = Image.fromarray(np.uint8(img))
     img.save(save_path)
-    prediction = Image.open(save_path)
 
-    # Concat side by side in PIL
-    img = np.array(img)
-    concat = Image.new('RGB', (img.shape[1] + prediction.size[0], img.shape[0]))
-    concat.paste(rgb, (0, 0))
-    concat.paste(prediction, (img.shape[1], 0))
-    return concat
+def visualize_all(rgb, detection_list, save_path="tmp.png"):
+    img = rgb.copy()
+    gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
+    img = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
+    alpha = 0.33
+
+    for i, detections in enumerate(detection_list):
+        colors = distinctipy.get_colors(len(detections))
+        for det in detections:
+            if det['score'] >= 0.5:
+                mask = rle_to_mask(det["segmentation"])
+                edge = canny(mask)
+                edge = binary_dilation(edge, np.ones((2, 2)))
+                obj_id = det["category_id"]
+                temp_id = obj_id - 1 + i
+
+                r = int(255 * colors[temp_id][0])
+                g = int(255 * colors[temp_id][1])
+                b = int(255 * colors[temp_id][2])
+                img[mask, 0] = alpha * r + (1 - alpha) * img[mask, 0]
+                img[mask, 1] = alpha * g + (1 - alpha) * img[mask, 1]
+                img[mask, 2] = alpha * b + (1 - alpha) * img[mask, 2]
+                img[edge, :] = 255
+
+    img = Image.fromarray(np.uint8(img))
+    img.save(save_path)
 
 def batch_input_data(depth_path, cam_path, device):
     batch = {}
@@ -200,6 +221,7 @@ def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, c
     
     # run inference
     rgb = Image.open(rgb_path).convert("RGB")
+
     detections = model.segmentor_model.generate_masks(np.array(rgb))
     detections = Detections(detections)
     query_decriptors, query_appe_descriptors = model.descriptor_model.forward(np.array(rgb), detections)
@@ -250,8 +272,9 @@ def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, c
     save_json_bop23(save_path+".json", detections)
 
     save_path = f"{output_dir}/segmentation/{obj_name}"
-    vis_img = visualize(rgb, detections, f"{save_path}/vis_ism.png")
-    vis_img.save(f"{save_path}/vis_ism.png")
+    visualize(rgb, detections, f"{save_path}/vis_ism.png")
+    
+    detection_list.append(detections)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -274,3 +297,7 @@ if __name__ == "__main__":
             args.segmentor_model, args.output_dir, cad_path, args.rgb_path, args.depth_path, args.cam_path, obj_name,
             stability_score_thresh=args.stability_score_thresh, 
         )
+    
+    save_path = f"{args.output_dir}/segmentation"
+    rgb = Image.open(args.rgb_path).convert("RGB")
+    vis_img = visualize_all(rgb, detection_list, f"{save_path}/vis_ism_all.png")

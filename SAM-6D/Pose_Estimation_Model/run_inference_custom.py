@@ -332,6 +332,7 @@ if __name__ == "__main__":
         pred_trans_list.append(pred_trans)
         model_points_list.append(model_points)
         K_list.append(K)
+        print(type(img))
         
     for i in range(2):
         save_path = os.path.join(f"{cfg.output_dir}/sam6d_results", 'multi.png')
