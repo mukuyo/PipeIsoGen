@@ -33,6 +33,7 @@ from utils.bbox_utils import CropResizePad
 from model.utils import Detections, convert_npz_to_json
 from model.loss import Similarity
 from utils.inout import load_json, save_json_bop23
+from ultralytics import YOLO
 
 inv_rgb_transform = T.Compose(
         [
@@ -89,20 +90,20 @@ def visualize(rgb, detections, save_path="tmp.png"):
     alpha = 0.33
 
     for det in detections:
-        # if det['score'] >= score_threshold:
-        mask = rle_to_mask(det["segmentation"])
-        edge = canny(mask)
-        edge = binary_dilation(edge, np.ones((2, 2)))
-        obj_id = det["category_id"]
-        temp_id = obj_id - 1
+        if det['score'] >= 0.5:
+            mask = rle_to_mask(det["segmentation"])
+            edge = canny(mask)
+            edge = binary_dilation(edge, np.ones((2, 2)))
+            obj_id = det["category_id"]
+            temp_id = obj_id - 1
 
-        r = int(255 * colors[temp_id][0])
-        g = int(255 * colors[temp_id][1])
-        b = int(255 * colors[temp_id][2])
-        img[mask, 0] = alpha * r + (1 - alpha) * img[mask, 0]
-        img[mask, 1] = alpha * g + (1 - alpha) * img[mask, 1]
-        img[mask, 2] = alpha * b + (1 - alpha) * img[mask, 2]
-        img[edge, :] = 255
+            r = int(255 * colors[temp_id][0])
+            g = int(255 * colors[temp_id][1])
+            b = int(255 * colors[temp_id][2])
+            img[mask, 0] = alpha * r + (1 - alpha) * img[mask, 0]
+            img[mask, 1] = alpha * g + (1 - alpha) * img[mask, 1]
+            img[mask, 2] = alpha * b + (1 - alpha) * img[mask, 2]
+            img[edge, :] = 255
 
     img = Image.fromarray(np.uint8(img))
     img.save(save_path)
@@ -139,11 +140,12 @@ def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, c
         cfg.model.segmentor_model.stability_score_thresh = stability_score_thresh
     elif segmentor_model == "fastsam":
         with initialize(version_base=None, config_path=conf_path+"/model"):
-            cfg.model = compose(config_name='ISM_fastsam.yaml')
+            cfg.model = compose(config_name='ISM_'+obj_name+'.yaml')
     else:
         raise ValueError("The segmentor_model {} is not supported now!".format(segmentor_model))
 
     logging.info("Initializing model")
+
     model = instantiate(cfg.model)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -255,18 +257,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--segmentor_model", default='sam', help="The segmentor model in ISM")
     parser.add_argument("--output_dir", nargs="?", help="Path to root directory of the output")
-    parser.add_argument("--cad_path", nargs="?", help="Path to CAD(mm)")
+    parser.add_argument("--cad_dir", nargs="?", help="Path to CAD(mm)")
     parser.add_argument("--rgb_path", nargs="?", help="Path to RGB image")
     parser.add_argument("--depth_path", nargs="?", help="Path to Depth image(mm)")
     parser.add_argument("--cam_path", nargs="?", help="Path to camera information")
     parser.add_argument("--stability_score_thresh", default=0.97, type=float, help="stability_score_thresh of SAM")
-    parser.add_argument('--obj_name', default="tmp", help="The name of target object")
     args = parser.parse_args()
-    output_path = os.path.join(args.output_dir, "segmentation")
-    os.makedirs(output_path, exist_ok=True)
-    output_path = os.path.join(output_path, args.obj_name)
-    os.makedirs(output_path, exist_ok=True)
-    run_inference(
-        args.segmentor_model, args.output_dir, args.cad_path, args.rgb_path, args.depth_path, args.cam_path, args.obj_name,
-        stability_score_thresh=args.stability_score_thresh, 
-    )
+
+    for obj_name in ['tee', 'elbow']:
+        output_path = os.path.join(args.output_dir, "segmentation")
+        cad_path = os.path.join(args.cad_dir, obj_name+'.ply')
+        os.makedirs(output_path, exist_ok=True)
+        output_path = os.path.join(output_path, obj_name)
+        os.makedirs(output_path, exist_ok=True)
+        run_inference(
+            args.segmentor_model, args.output_dir, cad_path, args.rgb_path, args.depth_path, args.cam_path, obj_name,
+            stability_score_thresh=args.stability_score_thresh, 
+        )

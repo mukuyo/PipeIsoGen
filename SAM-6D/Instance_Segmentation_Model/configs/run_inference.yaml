@@ -11,7 +11,7 @@ defaults:
 hydra:
   output_subdir: null
   run:
-   dir: .
+   dir: ./SAM-6D/Instance_Segmentation_Model/
 
 save_dir: ./SAM-6D/Instance_Segmentation_Model/log/${name_exp}
 name_exp: sam

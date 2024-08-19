@@ -9,7 +9,7 @@ defaults:
 hydra:
   output_subdir: null
   run:
-   dir: .
+   dir: ./SAM-6D/Instance_Segmentation_Model/
 
 level: 2
 disable_output: true
