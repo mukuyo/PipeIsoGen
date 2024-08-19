@@ -15,5 +15,4 @@ export BLENDER_PATH=SAM-6D/Render/bin/blender-3.3.21-linux-x64
 export SEGMENTOR_MODEL=fastsam
 
 # Pose estimation env
-export TEE_SEG_PATH=$OUTPUT_DIR/segmentation/tee/detection_ism.json
-export ELBOW_SEG_PATH=$OUTPUT_DIR/segmentation/elbow/detection_ism.json
+export SEG_DIR=$OUTPUT_DIR/segmentation/
