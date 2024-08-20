@@ -109,10 +109,10 @@ def visualize(rgb, pred_rot, pred_trans, model_points, K, save_path):
     img = Image.fromarray(np.uint8(img))
     img.save(save_path)
 
-def visualize_all(rgb, pred_rot_list, pred_trans_list, model_points_list, K_list, save_path):
-    img = draw_detections_all(rgb, pred_rot_list, pred_trans_list, model_points_list, K_list)
+def visualize_all(rgb, pred_rot_list, pred_trans_list, model_points_list, K_list, save_path, object_list):
+    img = draw_detections_all(rgb, pred_rot_list, pred_trans_list, model_points_list, K_list, save_path, object_list)
     img = Image.fromarray(np.uint8(img))
-    img.save(save_path)
+    img.save(os.path.join(save_path, 'vis_pem_all.png'))
 
 def _get_template(path, cfg, tem_index=1):
     rgb_path = os.path.join(path, 'rgb_'+str(tem_index)+'.png')
@@ -189,7 +189,6 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
     all_rgb_choose = []
     all_score = []
     all_dets = []
-    print(len(dets))
 
     for inst in dets:
         seg = inst['segmentation']
@@ -216,7 +215,6 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
         center = np.mean(cloud, axis=0)
         tmp_cloud = cloud - center[None, :]
         flag = np.linalg.norm(tmp_cloud, axis=1) < radius * 1.2
-        print(np.sum(flag), inst['scene_id'])
         if np.sum(flag) < 4:
             continue
         choose = choose[flag]
@@ -244,7 +242,6 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
         all_score.append(score)
         all_dets.append(inst)
 
-    print(all_score)
     ret_dict = {}
     ret_dict['pts'] = torch.stack(all_cloud).cuda()
     ret_dict['rgb'] = torch.stack(all_rgb).cuda()
@@ -260,13 +257,15 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
 
 if __name__ == "__main__":
 
+    object_list = ['tee', 'elbow']
+
     img_list = []
     pred_rot_list = []
     pred_trans_list = []
     model_points_list = []
     K_list = []
 
-    for obj_name in ['tee', 'elbow']:
+    for obj_name in object_list:
         cfg = init(obj_name)
 
         print("=> creating model ...")
@@ -306,21 +305,30 @@ if __name__ == "__main__":
         pred_trans = out['pred_t'].detach().cpu().numpy() * 1000
 
         print("=> saving results ...")
-        os.makedirs(f"{cfg.output_dir}/sam6d_results/{obj_name}", exist_ok=True)
+        os.makedirs(f"{cfg.output_dir}/pose/{obj_name}", exist_ok=True)
         for idx, det in enumerate(detections):
             detections[idx]['score'] = float(pose_scores[idx])
             detections[idx]['R'] = list(pred_rot[idx].tolist())
             detections[idx]['t'] = list(pred_trans[idx].tolist())
 
-        with open(os.path.join(f"{cfg.output_dir}/sam6d_results/{obj_name}", 'detection_pem.json'), "w") as f:
+        with open(os.path.join(f"{cfg.output_dir}/pose/{obj_name}", 'detection_pem.json'), "w") as f:
             json.dump(detections, f)
 
         print("=> visualizating ...")
-        save_path = os.path.join(f"{cfg.output_dir}/sam6d_results/{obj_name}", 'vis_pem.png')
+        save_path = os.path.join(f"{cfg.output_dir}/pose/{obj_name}", 'vis_pem.png')
         valid_masks = pose_scores == pose_scores.max()
         K = input_data['K'].detach().cpu().numpy()
         visualize(img, pred_rot, pred_trans, model_points*1000, K, save_path)
         
+        pred_save = os.path.join(f"{cfg.output_dir}/pose/{obj_name}", "pose.npy")
+        combined_list = []
+        for i in range(len(pred_rot)):
+            trans_reshaped = pred_trans[i].reshape(-1, 1)
+            combined_arr = np.hstack((pred_rot[i], trans_reshaped))
+            combined_list.append(combined_arr)
+        combined_array = np.array(combined_list)
+        np.save(pred_save, combined_array)
+
         img_list.append(img)
         pred_rot_list.append(pred_rot)
         pred_trans_list.append(pred_trans)
@@ -328,5 +336,5 @@ if __name__ == "__main__":
         K_list.append(K)
         
    
-    save_path = os.path.join(f"{cfg.output_dir}/sam6d_results", 'vis_pem_all.png')   
-    vis_img = visualize_all(img_list[0], pred_rot_list, pred_trans_list, model_points_list, K_list, save_path)
+    save_path = os.path.join(f"{cfg.output_dir}", "pose")
+    vis_img = visualize_all(img_list[0], pred_rot_list, pred_trans_list, model_points_list, K_list, save_path, object_list)

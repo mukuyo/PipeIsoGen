@@ -5,21 +5,19 @@ import argparse
 
 from logging import getLogger, DEBUG, StreamHandler, Formatter
 
-from isometric.dxf.generate import GenDxf
-from isometric.src.transform import Trans
-from isometric.src.distace import Distance
+# from isometric.dxf.generate import GenDxf
+from connect import Connect
+# from isometric.src.distace import Distance
 
 class Iso():
     """Isometric class"""
-    def __init__(self, cfg, logger) -> None:
-        self.__cfg = cfg
+    def __init__(self, args, logger) -> None:
         self.__logger = logger
-        self.__trans = Trans(self.__cfg)
-        self.__distance = Distance(self.__cfg)
-        self.__dxf = GenDxf(self.__cfg)
+        self.__connect = Connect(args, logger)
 
-    # def generate_iso(self, pose_results: list) -> None:
-    #     """generate_isometric"""
+    def generate_iso(self) -> None:
+        """generate_isometric"""
+        self.__connect.compute_piping_relationship()
     #     pare_results = self.__trans.facing_each_other(pose_results)
     #     if pare_results[0]:
     #         all_results = self.__trans.remain_pipes(pare_results, pose_results)
@@ -42,7 +40,6 @@ if __name__ == "__main__":
     logger.addHandler(handler)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--segmentor_model", default='sam', help="The segmentor model in ISM")
     parser.add_argument("--output_dir", nargs="?", help="Path to root directory of the output")
     parser.add_argument("--rgb_path", nargs="?", help="Path to RGB image")
     parser.add_argument("--depth_path", nargs="?", help="Path to Depth image(mm)")
@@ -50,12 +47,10 @@ if __name__ == "__main__":
     parser.add_argument("--pose_dir", nargs="?", help="Path to pose estimation information")
     args = parser.parse_args()
 
-    with open('./config/main.yaml', 'r', encoding="utf8") as yml:
-        cfg = yaml.safe_load(yml)
-
     logger.info('start predict')
 
-    iso = Iso(cfg, logger)
+    iso = Iso(args, logger)
+    iso.generate_iso()
     
     logger.info('end predict')
 

@@ -48,7 +48,7 @@ def get_3d_bbox(scale, shift = 0):
     bbox_3d = bbox_3d.transpose()
     return bbox_3d
 
-def draw_3d_bbox(img, imgpts, color, size=3):
+def draw_3d_bbox(img, imgpts, color, size=2):
     imgpts = np.int32(imgpts).reshape(-1, 2)
 
     # draw ground layer in darker color
@@ -64,7 +64,7 @@ def draw_3d_bbox(img, imgpts, color, size=3):
     # finally, draw top layer in color
     for i, j in zip([0, 1, 2, 3],[1, 3, 0, 2]):
         img = cv2.line(img, tuple(imgpts[i]), tuple(imgpts[j]), color, size)
-    return img
+    return img, imgpts
 
 def draw_3d_pts(img, imgpts, color, size=1):
     imgpts = np.int32(imgpts).reshape(-1, 2)
@@ -83,12 +83,11 @@ def draw_detections(image, pred_rots, pred_trans, model_points, intrinsics, colo
     # 3d point
     choose = np.random.choice(np.arange(len(model_points)), 512)
     pts_3d = model_points[choose].T
-    print(num_pred_instances)
     for ind in range(num_pred_instances):
         # draw 3d bounding box
         transformed_bbox_3d = pred_rots[ind]@bbox_3d + pred_trans[ind][:,np.newaxis]
         projected_bbox = calculate_2d_projections(transformed_bbox_3d, intrinsics[ind])
-        draw_image_bbox = draw_3d_bbox(draw_image_bbox, projected_bbox, color)
+        draw_image_bbox, _ = draw_3d_bbox(draw_image_bbox, projected_bbox, color)
         # draw point cloud
         transformed_pts_3d = pred_rots[ind]@pts_3d + pred_trans[ind][:,np.newaxis]
         projected_pts = calculate_2d_projections(transformed_pts_3d, intrinsics[ind])
@@ -96,10 +95,10 @@ def draw_detections(image, pred_rots, pred_trans, model_points, intrinsics, colo
 
     return draw_image_bbox
 
-def draw_detections_all(image, pred_rot_list, pred_tran_list, model_point_list, intrinsic_list):
+def draw_detections_all(image, pred_rot_list, pred_tran_list, model_point_list, intrinsic_list, save_path, object_list):
     draw_image_bbox = image.copy()
-    for i in range(2):
-        print("uu")
+
+    for i, obj_name in enumerate(object_list):
         pred_rots = pred_rot_list[i]
         pred_trans = pred_tran_list[i]
         model_points = model_point_list[i]
@@ -118,15 +117,19 @@ def draw_detections_all(image, pred_rot_list, pred_tran_list, model_point_list, 
         # 3d point
         choose = np.random.choice(np.arange(len(model_points)), 512)
         pts_3d = model_points[choose].T
-        print(num_pred_instances)
+        
+        imgpts_list = []
         for ind in range(num_pred_instances):
             # draw 3d bounding box
             transformed_bbox_3d = pred_rots[ind]@bbox_3d + pred_trans[ind][:,np.newaxis]
             projected_bbox = calculate_2d_projections(transformed_bbox_3d, intrinsics[ind])
-            draw_image_bbox = draw_3d_bbox(draw_image_bbox, projected_bbox, color)
+            draw_image_bbox, imgpts = draw_3d_bbox(draw_image_bbox, projected_bbox, color)
             # draw point cloud
             transformed_pts_3d = pred_rots[ind]@pts_3d + pred_trans[ind][:,np.newaxis]
             projected_pts = calculate_2d_projections(transformed_pts_3d, intrinsics[ind])
             draw_image_bbox = draw_3d_pts(draw_image_bbox, projected_pts, color)
+            imgpts_list.append(imgpts)
+
+        np.save(os.path.join(save_path, obj_name+"/3d_bbox.npy"), imgpts_list)
 
     return draw_image_bbox
