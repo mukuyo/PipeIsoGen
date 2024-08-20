@@ -15,4 +15,4 @@ export BLENDER_PATH=SAM-6D/Render/bin/blender-3.3.21-linux-x64
 # Prediction env
 export SEGMENTOR_MODEL=fastsam
 export SEG_DIR=$OUTPUT_DIR/segmentation/
-export Pose_DIR=$OUTPUT_DIR/pose/
+export POSE_DIR=$OUTPUT_DIR/pose/

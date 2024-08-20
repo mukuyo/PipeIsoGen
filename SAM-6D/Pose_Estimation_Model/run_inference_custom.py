@@ -337,4 +337,4 @@ if __name__ == "__main__":
         
    
     save_path = os.path.join(f"{cfg.output_dir}", "pose")
-    vis_img = visualize_all(img_list[0], pred_rot_list, pred_trans_list, model_points_list, K_list, save_path, object_list)
+    visualize_all(img_list[0], pred_rot_list, pred_trans_list, model_points_list, K_list, save_path, object_list)
