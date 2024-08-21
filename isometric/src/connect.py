@@ -21,8 +21,10 @@ class Connect:
         self.__logger.info("Start computing piping relationship")
 
         for pipe in self.__pipes:
+            pare_num_list = []
             translation = pipe.pose_matrix[:3, 3]  # パイプの位置ベクトル
             for vector in pipe.vectors:
+                pare_num = -1
                 distance_min = float('inf')
                 for other_pipe in self.__pipes:
                     if pipe.num == other_pipe.num:
@@ -44,10 +46,11 @@ class Connect:
                             distance_min = distance
                             pare_num = other_pipe.num
                     
-                if not distance_min == float('inf'):
-                    self.__logger.info(
-                        f"{pipe.name} Pipe {pipe.num} is facing Pipe {pare_num}"
-                    )
+                if not distance_min == float('inf') and not pare_num == -1:
+                    pare_num_list.append(pare_num)
+            pipe.pare_list = pare_num_list
+            print(pipe)
+
 
     def calculate_angle_between_vectors(self, vector1: np.ndarray, vector2: np.ndarray) -> float:
         """Calculate the angle between two vectors in degrees"""
