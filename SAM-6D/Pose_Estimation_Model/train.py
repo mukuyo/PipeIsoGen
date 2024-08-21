@@ -1,4 +1,3 @@
-
 import gorilla
 from tqdm import tqdm
 import argparse
@@ -25,8 +24,7 @@ from solver import Solver, get_logger
 from loss_utils import Loss
 
 def get_parser():
-    parser = argparse.ArgumentParser(
-        description="Pose Estimation")
+    parser = argparse.ArgumentParser(description="Pose Estimation")
 
     parser.add_argument("--gpus",
                         type=str,
@@ -114,7 +112,6 @@ if __name__ == "__main__":
         iters_per_epoch = cfg.lr_scheduler.step_size_up+cfg.lr_scheduler.step_size_down
     train_dataset = importlib.import_module(cfg.train_dataset.name)
     train_dataset = train_dataset.Dataset(cfg.train_dataset, iters_per_epoch*batchsize)
-
 
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,

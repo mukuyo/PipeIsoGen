@@ -319,15 +319,6 @@ if __name__ == "__main__":
         valid_masks = pose_scores == pose_scores.max()
         K = input_data['K'].detach().cpu().numpy()
         visualize(img, pred_rot, pred_trans, model_points*1000, K, save_path)
-        
-        pred_save = os.path.join(f"{cfg.output_dir}/pose/{obj_name}", "pose.npy")
-        combined_list = []
-        for i in range(len(pred_rot)):
-            trans_reshaped = pred_trans[i].reshape(-1, 1)
-            combined_arr = np.hstack((pred_rot[i], trans_reshaped))
-            combined_list.append(combined_arr)
-        combined_array = np.array(combined_list)
-        np.save(pred_save, combined_array)
 
         img_list.append(img)
         pred_rot_list.append(pred_rot)

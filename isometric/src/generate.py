@@ -17,7 +17,7 @@ class Iso:
 
     def generate_iso(self) -> None:
         """Generate isometric"""
-        self.__draw.init_pose_show()
+        # self.__draw.init_pose_show()
         self.__connect.compute_piping_relationship()
 
 if __name__ == "__main__":
