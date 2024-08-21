@@ -2,103 +2,102 @@ import os
 import numpy as np
 import cv2
 import json
+import math
 
-from numpy import ndarray
-
-class Pipe:
-    def __init__(self, name: str, num: int, pose: ndarray, vectors: list) -> None:
-        self.__name = name
-        self.__num = num
-        self.__vectors = vectors
-        self.__r_matrix: ndarray = pose[:, :3]
-        self.__t_matrix: ndarray = pose[:, 3:4]
-
-    def __str__(self) -> str:
-        vectors_str = '\n'.join(map(str, self.__vectors))
-        r_matrix_str = '\n'.join(['\t'.join(map(str, row)) for row in self.__r_matrix])
-        t_matrix_str = '\n'.join(['\t'.join(map(str, row)) for row in self.__t_matrix])
-
-        return (f"Pipe Name: {self.__name}\n"
-                f"Number: {self.__num}\n"
-                f"Vectors:\n{vectors_str}\n"
-                f"Rotation Matrix (R):\n{r_matrix_str}\n"
-                f"Translation Matrix (T):\n{t_matrix_str}")
+from isometric.common.pipe import Pipe
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 class Connect:
     """Calculate Pipe Connection"""
-    def __init__(self, args, logger) -> None:
+    def __init__(self, args, logger, pipes) -> None:
         self.__args = args
         self.__logger = logger
+        self.__pipes: list[Pipe] = pipes
+        self.__angle_threshold = 10.0  # Angle threshold in degrees for determining if pipes are facing each other
     
     def compute_piping_relationship(self) -> None:
         """Compute piping relationship"""
         self.__logger.info("Start computing piping relationship")
-        image = cv2.imread(self.__args.rgb_path)
-        
-        # Load camera parameters from JSON file
-        with open(self.__args.cam_path, 'r') as f:
-            cam_params = json.load(f)
-        
-        camera_matrix = np.array(cam_params["cam_K"]).reshape(3, 3)
-        
-        # Coefficient to scale the length of arrows
-        arrow_length = 10  # Adjust this value to change the length of the arrow
-        
-        pipe_count = -1
 
-        # Load the poses of all pipes and store them in a dictionary
-        for obj_name in self.__args.objects_name:
-            pose_path = os.path.join(self.__args.pose_dir, obj_name, "pose.npy")
-            pose_list = np.load(pose_path, allow_pickle=True)  # Load the list
+        for pipe in self.__pipes:
+            translation = pipe.pose_matrix[:3, 3]  # パイプの位置ベクトル
+            for vector in pipe.vectors:
+                distance_min = float('inf')
+                for other_pipe in self.__pipes:
+                    if pipe.num == other_pipe.num:
+                        continue
+                    
+                    other_translation = other_pipe.pose_matrix[:3, 3]  # 他のパイプの位置ベクトル
+                    
+                    # パイプ間の位置差ベクトルを計算
+                    relative_position = other_translation - translation
+                    
+                    distance = np.linalg.norm(relative_position)
+
+                    # 方向ベクトル同士の角度を計算
+                    angle = self.calculate_angle_between_vectors(vector, relative_position)
+                    
+                    # 向かい合っているかを判断
+                    if abs(angle) < self.__angle_threshold:
+                        if distance_min > distance:
+                            distance_min = distance
+                            pare_num = other_pipe.num
+                    
+                if not distance_min == float('inf'):
+                    self.__logger.info(
+                        f"{pipe.name} Pipe {pipe.num} is facing Pipe {pare_num}"
+                    )
+
+    def calculate_angle_between_vectors(self, vector1: np.ndarray, vector2: np.ndarray) -> float:
+        """Calculate the angle between two vectors in degrees"""
+        # 正規化してから内積を計算
+        norm1 = np.linalg.norm(vector1)
+        norm2 = np.linalg.norm(vector2)
+        
+        if norm1 == 0 or norm2 == 0:
+            return 180.0  # 一方でもゼロベクトルなら180度
+        
+        # 正規化ベクトルを計算
+        unit_vector1 = vector1 / norm1
+        unit_vector2 = vector2 / norm2
+        
+        # 内積を計算
+        dot_product = np.dot(unit_vector1, unit_vector2)
+        
+        # 角度をラジアンで計算し、度に変換
+        angle_rad = math.acos(np.clip(dot_product, -1.0, 1.0))
+        angle_deg = angle_rad * (180.0 / math.pi)
+        
+        return angle_deg
+
+    def plot_vectors_3d(self) -> None:
+        """Plot vectors in 3D space with proper origins"""
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        for pipe in self.__pipes:
+            origin = pipe.pose_matrix[:3, 3]  # Get the starting position from pipe.pose_matrix
             
-            direction_list = [1, 2]
-            if obj_name == 'tee':
-                direction_list = [1, 2, -2]
-            
-            for i, pose_matrix in enumerate(pose_list):
-                pipe_count = pipe_count + 1
-                vectors = []
-                for direction in direction_list:
-                    if direction == -2:
-                        axis_vector = -pose_matrix[:3, 2]
-                    else:
-                        axis_vector = pose_matrix[:3, direction]
-                        
-                    translation = pose_matrix[:3, 3]  # Translation vector
+            for vector in pipe.vectors:
+                # Plot the vector from the origin defined by pipe.pose_matrix
+                ax.quiver(
+                    origin[0], origin[1], origin[2], 
+                    vector[0], vector[1], vector[2], 
+                    length=10.0, normalize=True
+                )
+                # Annotate the vector with the pipe name and number
+                ax.text(
+                    origin[0] + vector[0], 
+                    origin[1] + vector[1], 
+                    origin[2] + vector[2], 
+                    f'{pipe.name} {pipe.num}', 
+                    color='red'
+                )
 
-                    axis_end_point_3d = translation - axis_vector * arrow_length
-                    
-                    # Extend to the camera coordinate system to convert 3D coordinates to 2D image coordinates
-                    start_point_3d = np.append(translation, 1)  # Center point after correction
-                    end_point_3d = np.append(axis_end_point_3d, 1)  # Arrow tip
-                    
-                    # Transform using the camera matrix
-                    start_point_2d_homogeneous = camera_matrix @ start_point_3d[:3]
-                    end_point_2d_homogeneous = camera_matrix @ end_point_3d[:3]
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        ax.set_title('3D Pipe Vectors')
 
-                    # Normalize to convert to 2D coordinates
-                    start_point_2d = (start_point_2d_homogeneous / start_point_2d_homogeneous[2])[:2]
-                    end_point_2d = (end_point_2d_homogeneous / end_point_2d_homogeneous[2])[:2]
-                    
-                    # Convert to image coordinates
-                    start_point = (int(start_point_2d[0]), int(start_point_2d[1]))
-                    end_point = (int(end_point_2d[0]), int(end_point_2d[1]))
-
-                    # Draw the center of the object for debugging (red dot)
-                    cv2.circle(image, start_point, 2, (0, 0, 255), -1)  # Red dot
-
-                    # Draw the opposite side of the Z-axis direction vector on the image
-                    cv2.arrowedLine(image, start_point, end_point, (0, 0, 255), 3)  # Red arrow
-                    
-                    # Calculate the vector and store it
-                    # vector = end_point_3d - start_point_3d
-                    vectors.append(axis_vector)
-
-                pipe = Pipe(name=obj_name, num=pipe_count, pose=pose_matrix, vectors=vectors)
-                print(pipe)
-                print()
-
-        # Save the image
-        output_path = 'output_image.png'
-        cv2.imwrite(output_path, image)
-        self.__logger.info(f"Output image saved to {output_path}")
+        plt.show()

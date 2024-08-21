@@ -1,23 +1,42 @@
 import os
 import sys
 import argparse
+import numpy as np
 from logging import getLogger, DEBUG, StreamHandler, Formatter
 
 # Add the correct path for the isometric module
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from connect import Connect
+from isometric.common.pipe import Pipe
 from isometric.utils.draw import DrawUtils
 
 class Iso:
     """Isometric class"""
     def __init__(self, args, logger) -> None:
-        self.__draw = DrawUtils(args, logger)
-        self.__connect = Connect(args, logger)
+        self.__args = args
+        self.__logger = logger
 
+        self.__init_pipe()
+
+        self.__draw = DrawUtils(args, logger)
+        self.__connect = Connect(args, logger, self.__pipes)
+
+    def __init_pipe(self) -> None:
+        self.__logger.info("Init Pipe Information")
+        
+        self.__pipes: list[Pipe] = []
+        pipe_count = 0
+        for obj_name in self.__args.objects_name:
+            pose_path = os.path.join(self.__args.pose_dir, obj_name, "pose.npy")
+            pose_list = np.load(pose_path, allow_pickle=True)
+            for pose_matrix in pose_list:
+                self.__pipes.append(Pipe(args, logger, obj_name, pipe_count, pose_matrix))
+                pipe_count += 1
+    
     def generate_iso(self) -> None:
         """Generate isometric"""
-        # self.__draw.init_pose_show()
+        self.__draw.pipe_direction(self.__pipes)
         self.__connect.compute_piping_relationship()
 
 if __name__ == "__main__":
