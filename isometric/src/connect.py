@@ -5,8 +5,6 @@ import json
 import math
 
 from isometric.common.pipe import Pipe
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 
 class Connect:
     """Calculate Pipe Connection"""
@@ -44,12 +42,13 @@ class Connect:
                     if abs(angle) < self.__angle_threshold:
                         if distance_min > distance:
                             distance_min = distance
-                            pare_num = other_pipe.num
+                            if not pipe.num in other_pipe.pare_list:
+                                pare_num = other_pipe.num
                     
                 if not distance_min == float('inf') and not pare_num == -1:
                     pare_num_list.append(pare_num)
             pipe.pare_list = pare_num_list
-            print(pipe)
+            print(pipe.num, pipe.pare_list)
 
 
     def calculate_angle_between_vectors(self, vector1: np.ndarray, vector2: np.ndarray) -> float:
@@ -73,34 +72,3 @@ class Connect:
         angle_deg = angle_rad * (180.0 / math.pi)
         
         return angle_deg
-
-    def plot_vectors_3d(self) -> None:
-        """Plot vectors in 3D space with proper origins"""
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-
-        for pipe in self.__pipes:
-            origin = pipe.pose_matrix[:3, 3]  # Get the starting position from pipe.pose_matrix
-            
-            for vector in pipe.vectors:
-                # Plot the vector from the origin defined by pipe.pose_matrix
-                ax.quiver(
-                    origin[0], origin[1], origin[2], 
-                    vector[0], vector[1], vector[2], 
-                    length=10.0, normalize=True
-                )
-                # Annotate the vector with the pipe name and number
-                ax.text(
-                    origin[0] + vector[0], 
-                    origin[1] + vector[1], 
-                    origin[2] + vector[2], 
-                    f'{pipe.name} {pipe.num}', 
-                    color='red'
-                )
-
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
-        ax.set_title('3D Pipe Vectors')
-
-        plt.show()

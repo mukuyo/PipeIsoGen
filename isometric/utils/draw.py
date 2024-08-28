@@ -3,6 +3,9 @@ import cv2
 import numpy as np
 import json
 
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
 from isometric.common.pipe import Pipe
 
 class DrawUtils:
@@ -63,3 +66,34 @@ class DrawUtils:
         save_path = os.path.join(self.__args.output_dir, "isometric/", "pipe_direction.png")
         cv2.imwrite(save_path, self.__tmp_image)
         self.__logger.info(f"Output image saved to {save_path}")
+
+    def plot_vectors_3d(self) -> None:
+        """Plot vectors in 3D space with proper origins"""
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        for pipe in self.__pipes:
+            origin = pipe.pose_matrix[:3, 3]  # Get the starting position from pipe.pose_matrix
+            
+            for vector in pipe.vectors:
+                # Plot the vector from the origin defined by pipe.pose_matrix
+                ax.quiver(
+                    origin[0], origin[1], origin[2], 
+                    vector[0], vector[1], vector[2], 
+                    length=10.0, normalize=True
+                )
+                # Annotate the vector with the pipe name and number
+                ax.text(
+                    origin[0] + vector[0], 
+                    origin[1] + vector[1], 
+                    origin[2] + vector[2], 
+                    f'{pipe.name} {pipe.num}', 
+                    color='red'
+                )
+
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        ax.set_title('3D Pipe Vectors')
+
+        plt.show()
