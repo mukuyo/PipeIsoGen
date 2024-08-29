@@ -5,7 +5,6 @@ import argparse
 import numpy as np
 from logging import getLogger, DEBUG, StreamHandler, Formatter
 
-# Add the correct path for the isometric module
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from isometric.src.connect import Connect
@@ -46,13 +45,7 @@ class Iso:
             relationship, distance = self.__connect.get_pare_infos(self.__pipes[pipe[0]], self.__pipes[pipe[1]])
             self.__draw.pipe_line(self.__pipes[pipe[0]], self.__pipes[pipe[1]], relationship, distance)
             print(pipe, relationship)
-        # self.__next_pipes = []
-        # self.__next_pipes.append(self.__connect.find_first_pipe())
-        # for i in range(2):
-        #     for next_pipe in self.__next_pipes:
-        #         origin_pipe = self.__connect.find_piping_relationship(next_pipe)
-        #         print(origin_pipe)
-        #         self.__next_pipes = self.__draw.pipe_line(origin_pipe, self.__pipes)
+
         self.__draw.save_dxf()
 
 if __name__ == "__main__":

@@ -34,8 +34,6 @@ class DrawUtils:
         
         self.__msp = self.__doc.modelspace()
 
-        self.__before_point: Vec3 = Vec3(0, 0, 0)
-
     def __draw_under(self, point1: Vec3, distance):
         po2 = Point(point1.x, point1.y - distance)
         point2 = Vec3(po2.x, po2.y)
@@ -88,15 +86,6 @@ class DrawUtils:
         elif relationship == "right":
             point = self.__draw_right(Vec3(origin_pipe.point.x, origin_pipe.point.y), distance)
         next_pipe.point = point
-    # def pipe_line(self, origin_pipe: Pipe, pipes: list[Pipe], before_point: Vec3) -> None:
-    #     next_pipe_list = []
-    #     for pare_info in origin_pipe.pare_list:
-    #         if pare_info.relationship == "under":
-    #             before_point = self.__draw_under(before_point, pare_info)
-    #         elif pare_info.relationship == "right":
-    #             before_point = self.__draw_right(before_point, pare_info)
-    #         next_pipe_list.append(pipes[pare_info.num], before_point)
-    #     return next_pipe_list
     
     def pipe_direction(self, pipes: list[Pipe]) -> None:
         self.__tmp_image = self.__image.copy()

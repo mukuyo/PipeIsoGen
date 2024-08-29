@@ -52,56 +52,6 @@ class Connect:
 
         return bottom_left_pipe
 
-    def find_piping_relationship(self, pipe: Pipe) -> None:
-        """Find piping relationship"""
-        self.__logger.info("Start computing piping relationship")
-        
-        pare_list = []
-        translation = pipe.pose_matrix[:3, 3]  # パイプの位置ベクトル
-        for vector in pipe.vectors:
-            pare_num = -1
-            distance_min = float('inf')
-            for other_pipe in pipes:
-                if pipe.num == other_pipe.num:
-                    continue
-                
-                other_translation = other_pipe.pose_matrix[:3, 3]  # 他のパイプの位置ベクトル
-                
-                # パイプ間の位置差ベクトルを計算
-                relative_position = other_translation - translation
-                
-                distance = np.linalg.norm(relative_position)
-
-                # 方向ベクトル同士の角度を計算
-                angle = self.calculate_angle_between_vectors(vector, relative_position)
-                
-                # 向かい合っているかを判断
-                if abs(angle) < self.__angle_threshold:
-                    if distance_min > distance:
-                        distance_min = distance
-                        pare_num = other_pipe.num
-                        
-            if not distance_min == float('inf') and not pare_num == -1:
-                pare_list.append(self.__get_pare_info(pipe, pare_num, pipes))
-        pipe.pare_list = pare_list
-        
-        return pipe
-    
-    def get_pare_info(self, pipe, pare_num, pipes):
-        pare = Pare(pare_num)
-        if abs(pipe.center.x - pipes[pare_num].center.x) > abs(pipe.center.y - pipes[pare_num].center.y):
-            if np.sign(pipe.center.x - pipes[pare_num].center.x) > 0:
-                pare.relationship = "left"
-            else:
-                pare.relationship = "right"
-        else:
-            if np.sign(pipe.center.y - pipes[pare_num].center.y) > 0:
-                pare.relationship = "upper"
-            else:
-                pare.relationship = "under"
-        pare.distance = self.__compute_dist_between_pipes(pipe, pipes[pare_num])
-        return pare
-
     def get_pare_infos(self, pipe1, pipe2):
         relationship = ""
         if abs(pipe1.center.x - pipe2.center.x) > abs(pipe1.center.y - pipe2.center.y):
@@ -201,6 +151,5 @@ class Connect:
                             pare_num = other_pipe.num
                     
                 if not distance_min == float('inf') and not pare_num == -1:
-                    pare = self.get_pare_info(pipe, pare_num, pipes)
-                    pare_list.append(pare)
+                    pare_list.append(Pare(pare_num))
             pipe.pare_list = pare_list
