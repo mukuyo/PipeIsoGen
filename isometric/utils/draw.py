@@ -2,11 +2,12 @@ import os
 import cv2
 import numpy as np
 import json
-
+import ezdxf
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-
-from isometric.common.pipe import Pipe
+from math import sqrt, cos, pi
+from isometric.common.pipe import Pipe, Pare, Point
+from ezdxf.math import Vec3
 
 class DrawUtils:
     """Draw Utils class"""
@@ -21,11 +22,94 @@ class DrawUtils:
 
         self.__arrow_length = 10
 
+        self.__doc = ezdxf.new()
+
+        dimstyle = self.__doc.dimstyles.new('custom_dimstyle')
+        dimstyle.dxf.dimtxt = 30
+        dimstyle.dxf.dimdec = 0
+        dimstyle.dxf.dimasz = 20
+        dimstyle.dxf.dimblk = "OPEN"
+        dimstyle.dxf.dimclrd = 3
+        dimstyle.dxf.dimclre = 3
+        
+        self.__msp = self.__doc.modelspace()
+
+        self.__before_point: Vec3 = Vec3(0, 0, 0)
+
+    def __draw_under(self, point1: Vec3, distance):
+        po2 = Point(point1.x, point1.y - distance)
+        point2 = Vec3(po2.x, po2.y)
+        self.__msp.add_line(point1, point2)
+        self.__msp.add_aligned_dim(
+            p1=point1,
+            p2=point2,
+            distance=-25,
+            dimstyle="custom_dimstyle",
+            text=str(round(distance, 2))
+            ).render()
+        return po2
+
+    def __draw_right(self, point1: Vec3, distance):
+        # direction_radian = pi/6
+        # if direction == 0:
+        #     direction_radian = -pi/6
+        # elif direction == 1:
+        #     direction_radian = pi/6
+        # elif direction == 2:
+        #     direction_radian = 5*pi/6
+        # elif direction == 3:
+        #     direction_radian = -5*pi/6
+        # point2 = (int(distance*cos(direction_radian)+point1[0]), int(distance*sin(direction_radian)+point1[1]))
+        po2 = Point(distance*cos(pi/6)+point1.x, distance*cos(pi/6)+point1.y)
+        point2 = Vec3(po2.x, po2.y)
+        self.__msp.add_line(point1, point2)
+        distance = int(sqrt((point2[1] - point1[1]) * (point2[1] - point1[1]) + (point2[0] - point1[0]) * (point2[0] - point1[0])))
+        if point1[0] < point2[0]:
+            self.__msp.add_aligned_dim(
+                p1=point1,
+                p2=point2,
+                distance=-20,
+                dimstyle="custom_dimstyle",
+                text=str(round(distance, 2))
+                ).render()
+        else:
+            self.__msp.add_aligned_dim(
+                p1=point2,
+                p2=point1,
+                distance=-20,
+                dimstyle="custom_dimstyle",
+                text=str(round(distance, 2))
+                ).render()
+        return po2
+    
+    def pipe_line(self, origin_pipe: Pipe, next_pipe: Pipe, relationship, distance) -> None:
+        if relationship == "under":
+            point = self.__draw_under(Vec3(origin_pipe.point.x, origin_pipe.point.y), distance)
+        elif relationship == "right":
+            point = self.__draw_right(Vec3(origin_pipe.point.x, origin_pipe.point.y), distance)
+        next_pipe.point = point
+    # def pipe_line(self, origin_pipe: Pipe, pipes: list[Pipe], before_point: Vec3) -> None:
+    #     next_pipe_list = []
+    #     for pare_info in origin_pipe.pare_list:
+    #         if pare_info.relationship == "under":
+    #             before_point = self.__draw_under(before_point, pare_info)
+    #         elif pare_info.relationship == "right":
+    #             before_point = self.__draw_right(before_point, pare_info)
+    #         next_pipe_list.append(pipes[pare_info.num], before_point)
+    #     return next_pipe_list
+    
     def pipe_direction(self, pipes: list[Pipe]) -> None:
         self.__tmp_image = self.__image.copy()
 
         for pipe in pipes:
-            for vector in pipe.vectors:
+            for i, vector in enumerate(pipe.vectors):
+                if i == 0:
+                    color = (255, 0, 0)  # Green color
+                elif i == 1:
+                    color = (0, 255, 0)
+                else:
+                    color = (0, 0, 255)
+
                 translation = pipe.pose_matrix[:3, 3]
                 axis_end_point_3d = translation + vector * self.__arrow_length
 
@@ -46,16 +130,17 @@ class DrawUtils:
                 end_point = (int(end_point_2d[0]), int(end_point_2d[1]))
 
                 # Draw the center of the object for debugging (red dot)
-                cv2.circle(self.__tmp_image, start_point, 2, (0, 0, 255), -1)  # Red dot
+                cv2.circle(self.__tmp_image, start_point, 2, color, -1)  # Red dot
 
                 # Draw the opposite side of the Z-axis direction vector on the image
-                cv2.arrowedLine(self.__tmp_image, start_point, end_point, (0, 0, 255), 3)  # Red arrow
+                cv2.arrowedLine(self.__tmp_image, start_point, end_point, color, 3)  # Red arrow
 
                 # Draw the pipe number
                 pipe_number_text = f"{pipe.num}"
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 font_scale = 0.5
-                color = (255, 0, 0)  # Green color
+
+                color = (255, 0, 0)
                 thickness = 2
                 text_size, _ = cv2.getTextSize(pipe_number_text, font, font_scale, thickness)
                 text_x = start_point[0] - text_size[0] // 2
@@ -66,6 +151,9 @@ class DrawUtils:
         save_path = os.path.join(self.__args.output_dir, "isometric/", "pipe_direction.png")
         cv2.imwrite(save_path, self.__tmp_image)
         self.__logger.info(f"Output image saved to {save_path}")
+
+    def save_dxf(self) -> None:
+        self.__doc.saveas(os.path.join(self.__args.output_dir, "isometric/", "pipe.dxf"))
 
     def plot_vectors_3d(self) -> None:
         """Plot vectors in 3D space with proper origins"""

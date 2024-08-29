@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import argparse
 import numpy as np
 from logging import getLogger, DEBUG, StreamHandler, Formatter
@@ -7,7 +8,7 @@ from logging import getLogger, DEBUG, StreamHandler, Formatter
 # Add the correct path for the isometric module
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-from connect import Connect
+from isometric.src.connect import Connect
 from isometric.common.pipe import Pipe
 from isometric.utils.draw import DrawUtils
 
@@ -20,24 +21,39 @@ class Iso:
         self.__init_pipe()
 
         self.__draw = DrawUtils(args, logger)
-        self.__connect = Connect(args, logger, self.__pipes)
-
+        self.__connect = Connect(args, logger)
+        
     def __init_pipe(self) -> None:
         self.__logger.info("Init Pipe Information")
-        
+        with open(self.__args.cam_path, 'r') as f:
+            cam_params = json.load(f)        
+        camera_matrix = np.array(cam_params["cam_K"]).reshape(3, 3)
         self.__pipes: list[Pipe] = []
         pipe_count = 0
         for obj_name in self.__args.objects_name:
-            pose_path = os.path.join(self.__args.pose_dir, obj_name, "pose.npy")
-            pose_list = np.load(pose_path, allow_pickle=True)
+            pose_list = np.load(os.path.join(self.__args.pose_dir, obj_name, "pose.npy"))
             for pose_matrix in pose_list:
-                self.__pipes.append(Pipe(args, logger, obj_name, pipe_count, pose_matrix))
+                self.__pipes.append(Pipe(args, logger, obj_name, pipe_count, pose_matrix, camera_matrix))
                 pipe_count += 1
     
     def generate_iso(self) -> None:
         """Generate isometric"""
-        self.__draw.pipe_direction(self.__pipes)
-        self.__connect.compute_piping_relationship()
+        # self.__draw.pipe_direction(self.__pipes)
+        self.__connect.compute_piping_relationship(self.__pipes)
+        pipe = self.__connect.find_first_pipe(self.__pipes)
+        trans_pipes = self.__connect.traverse_pipes(self.__pipes, pipe)
+        for pipe in trans_pipes:
+            relationship, distance = self.__connect.get_pare_infos(self.__pipes[pipe[0]], self.__pipes[pipe[1]])
+            self.__draw.pipe_line(self.__pipes[pipe[0]], self.__pipes[pipe[1]], relationship, distance)
+            print(pipe, relationship)
+        # self.__next_pipes = []
+        # self.__next_pipes.append(self.__connect.find_first_pipe())
+        # for i in range(2):
+        #     for next_pipe in self.__next_pipes:
+        #         origin_pipe = self.__connect.find_piping_relationship(next_pipe)
+        #         print(origin_pipe)
+        #         self.__next_pipes = self.__draw.pipe_line(origin_pipe, self.__pipes)
+        self.__draw.save_dxf()
 
 if __name__ == "__main__":
     fmt = Formatter("[%(levelname)s] %(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
