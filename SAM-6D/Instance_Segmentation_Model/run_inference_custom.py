@@ -81,7 +81,7 @@ def visualize_all(rgb, detection_list, save_path="tmp.png"):
     for i, detections in enumerate(detection_list):
         colors = distinctipy.get_colors(len(detections))
         for det in detections:
-            if det['score'] >= 0.5:
+            if det['score'] >= 0.3:
                 mask = rle_to_mask(det["segmentation"])
                 edge = canny(mask)
                 edge = binary_dilation(edge, np.ones((2, 2)))

@@ -13,7 +13,7 @@ class Connect:
     def __init__(self, args, logger) -> None:
         self.__args = args
         self.__logger = logger
-        self.__angle_threshold = 10.0  # Angle threshold in degrees for determining if pipes are facing each other
+        self.__angle_threshold = 20.0  # Angle threshold in degrees for determining if pipes are facing each other
         
         self.__depth_image = cv2.imread(self.__args.depth_path, cv2.IMREAD_UNCHANGED)
 
@@ -24,8 +24,8 @@ class Connect:
         self.__intrinsics = intrinsics()
         self.__intrinsics.width = self.__depth_image.shape[1]  # depth image width
         self.__intrinsics.height = self.__depth_image.shape[0]  # depth image height
-        self.__intrinsics.fx = camera_matrix[0, 0]  # fx
-        self.__intrinsics.fy = camera_matrix[1, 1]  # fy
+        self.__intrinsics.fx = camera_matrix[0, 0]   # fx
+        self.__intrinsics.fy = camera_matrix[1, 1]   # fy
         self.__intrinsics.ppx = camera_matrix[0, 2]  # cx
         self.__intrinsics.ppy = camera_matrix[1, 2]  # cy
         self.__intrinsics.model = distortion.none
@@ -41,42 +41,26 @@ class Connect:
 
         for pipe in pipes:
             # Check if this pipe is more bottom-left than the current one
-            if pipe.center.x < min_x:
+            if pipe.point_2d.x < min_x:
                 bottom_left_pipe = pipe
-                min_x = pipe.center.x
+                min_x = pipe.point_2d.x
 
         if bottom_left_pipe is not None:
-            self.__logger.info(f"The most bottom-left pipe is {bottom_left_pipe.name} with center at {bottom_left_pipe._Pipe__center}")
+            self.__logger.info(f"The most bottom-left pipe is {bottom_left_pipe.name} with point_2d at {bottom_left_pipe._Pipe__point_2d}")
         else:
             self.__logger.info("No pipes found.")
 
         return bottom_left_pipe
-
-    def get_pare_infos(self, pipe1, pipe2):
-        relationship = ""
-        if abs(pipe1.center.x - pipe2.center.x) > abs(pipe1.center.y - pipe2.center.y):
-            if np.sign(pipe1.center.x - pipe2.center.x) > 0:
-                relationship = "left"
-            else:
-                relationship = "right"
-        else:
-            if np.sign(pipe1.center.y - pipe2.center.y) > 0:
-                relationship = "upper"
-            else:
-                relationship = "under"
-        distance = self.__compute_dist_between_pipes(pipe1, pipe2)
-        return relationship, distance
     
-    def __compute_dist_between_pipes(self, pipe1: Pipe, pipe2: Pipe):
+    def get_distance(self, pipe1: Pipe, pipe2: Pipe):
         """compute distance between two pipes"""
-        depth1 = float(self.__depth_image[int(pipe1.center.y), int(pipe1.center.x)])
-        depth2 = float(self.__depth_image[int(pipe2.center.y), int(pipe2.center.x)])
+        depth1 = float(self.__depth_image[int(pipe1.point_2d.y), int(pipe1.point_2d.x)])
+        depth2 = float(self.__depth_image[int(pipe2.point_2d.y), int(pipe2.point_2d.x)])
 
-        point1 = rs2_deproject_pixel_to_point(self.__intrinsics, [pipe1.center.x, pipe1.center.y], depth1)
-        point2 = rs2_deproject_pixel_to_point(self.__intrinsics, [pipe2.center.x, pipe2.center.y], depth2)
+        point1 = rs2_deproject_pixel_to_point(self.__intrinsics, [pipe1.point_2d.x, pipe1.point_2d.y], depth1)
+        point2 = rs2_deproject_pixel_to_point(self.__intrinsics, [pipe2.point_2d.x, pipe2.point_2d.y], depth2)
 
-        distance = np.linalg.norm(np.array(point1) - np.array(point2))
-
+        distance = np.linalg.norm(np.array(point1) - np.array(point2)) * 10.0
         return distance
     
     def traverse_pipes(self, pipes: list[Pipe], pipe: Pipe, visited=None):
@@ -147,7 +131,6 @@ class Connect:
                     if abs(angle) < self.__angle_threshold:
                         if distance_min > distance:
                             distance_min = distance
-                            # if not pipe.num in other_pipe.pare_list:
                             pare_num = other_pipe.num
                     
                 if not distance_min == float('inf') and not pare_num == -1:

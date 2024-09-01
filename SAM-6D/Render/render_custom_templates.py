@@ -29,7 +29,7 @@ args = parser.parse_args()
 
 bproc.init()
 
-for obj_name in ['tee', 'elbow']:
+for obj_name in ['tee', 'elbow', 'straight']:
 
     # set the cnos camera path
     render_dir = os.path.dirname(os.path.abspath(__file__))

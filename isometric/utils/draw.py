@@ -5,7 +5,7 @@ import json
 import ezdxf
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from math import sqrt, cos, pi
+from math import sqrt, sin, cos, pi
 from isometric.common.pipe import Pipe, Pare, Point
 from ezdxf.math import Vec3
 
@@ -25,68 +25,95 @@ class DrawUtils:
         self.__doc = ezdxf.new()
 
         dimstyle = self.__doc.dimstyles.new('custom_dimstyle')
-        dimstyle.dxf.dimtxt = 30
+        dimstyle.dxf.dimtxt = 17
         dimstyle.dxf.dimdec = 0
-        dimstyle.dxf.dimasz = 20
+        dimstyle.dxf.dimasz = 30
         dimstyle.dxf.dimblk = "OPEN"
         dimstyle.dxf.dimclrd = 3
         dimstyle.dxf.dimclre = 3
         
         self.__msp = self.__doc.modelspace()
 
-    def __draw_under(self, point1: Vec3, distance):
-        po2 = Point(point1.x, point1.y - distance)
-        point2 = Vec3(po2.x, po2.y)
-        self.__msp.add_line(point1, point2)
+    def pipe_line(self, start_pipe: Pipe, end_pipe: Pipe, distance: float):
+        dx = end_pipe.point_3d.x - start_pipe.point_3d.x
+        dy = end_pipe.point_3d.y - start_pipe.point_3d.y
+        dz = end_pipe.point_3d.z - start_pipe.point_3d.z
+
+        if abs(dx) > abs(dy):
+            pipe_rad = pi/6 * -np.sign(dy)
+            if dx < 0:
+                pipe_rad = -pipe_rad + pi
+            start_pipe.relationship = "forward"
+            end_pipe.relationship = "forward"
+        else:
+            pipe_rad = pi/2 * -np.sign(dy)
+            start_pipe.relationship = "under"
+            end_pipe.relationship = "upper"
+
+        start_point = Vec3(start_pipe.point_cad.x, start_pipe.point_cad.y)
+        end_point = Vec3(distance*cos(pipe_rad)+start_point.x, distance*sin(pipe_rad)+start_point.y)
+
+        self.__msp.add_line(start_point, end_point)
+
+        self.__pipe_symbol(start_point, end_point, pipe_rad)
+        # self.__msp.add_line(Vec3(start_point.x - 70*cos(pipe_rad), start_point.y - 70*sin(pipe_rad)), Vec3(start_point.x + 70*cos(pipe_rad), start_point.y - 70*sin(pipe_rad)))
+        # self.__msp.add_line(Vec3(start_point.x - 10*cos(pipe_rad), start_point.y - 75*sin(pipe_rad)), Vec3(start_point.x + 10*cos(pipe_rad), start_point.y - 75*sin(pipe_rad)))
+        
+        # elif start_pipe.relationship == "upper":
+            # self.__msp.add_line(Vec3(start_point.x - 10, start_point.y + 75), Vec3(start_point.x + 10, start_point.y + 75))
+        # elif start_pipe.relationship == "forward":
+        #     self.__msp.add_line(Vec3(start_point.x + , start_point.y - 75), Vec3(start_point.x + 10, start_point.y - 75))
+        # self.__pipe_symbol(self, start_pipe, end_pipe)
+
         self.__msp.add_aligned_dim(
-            p1=point1,
-            p2=point2,
-            distance=-25,
+            p1=start_point if dx > 0 else end_point,
+            p2=end_point if dx > 0 else start_point,
+            distance=-30,
             dimstyle="custom_dimstyle",
             text=str(round(distance, 2))
             ).render()
-        return po2
+        
+        end_pipe.point_cad = end_point
+    
+    def __pipe_symbol(self, start_point: Vec3, end_point: Vec3, pipe_rad: float, remain_flag: bool = False):
+        symbol_rad = pipe_rad
+        if not abs(symbol_rad) == pi/2:
+            symbol_rad = 0
 
-    def __draw_right(self, point1: Vec3, distance):
-        # direction_radian = pi/6
-        # if direction == 0:
-        #     direction_radian = -pi/6
-        # elif direction == 1:
-        #     direction_radian = pi/6
-        # elif direction == 2:
-        #     direction_radian = 5*pi/6
-        # elif direction == 3:
-        #     direction_radian = -5*pi/6
-        # point2 = (int(distance*cos(direction_radian)+point1[0]), int(distance*sin(direction_radian)+point1[1]))
-        po2 = Point(distance*cos(pi/6)+point1.x, distance*cos(pi/6)+point1.y)
-        point2 = Vec3(po2.x, po2.y)
-        self.__msp.add_line(point1, point2)
-        distance = int(sqrt((point2[1] - point1[1]) * (point2[1] - point1[1]) + (point2[0] - point1[0]) * (point2[0] - point1[0])))
-        if point1[0] < point2[0]:
-            self.__msp.add_aligned_dim(
-                p1=point1,
-                p2=point2,
-                distance=-20,
-                dimstyle="custom_dimstyle",
-                text=str(round(distance, 2))
-                ).render()
-        else:
-            self.__msp.add_aligned_dim(
-                p1=point2,
-                p2=point1,
-                distance=-20,
-                dimstyle="custom_dimstyle",
-                text=str(round(distance, 2))
-                ).render()
-        return po2
-    
-    def pipe_line(self, origin_pipe: Pipe, next_pipe: Pipe, relationship, distance) -> None:
-        if relationship == "under":
-            point = self.__draw_under(Vec3(origin_pipe.point.x, origin_pipe.point.y), distance)
-        elif relationship == "right":
-            point = self.__draw_right(Vec3(origin_pipe.point.x, origin_pipe.point.y), distance)
-        next_pipe.point = point
-    
+        self.__msp.add_line(Vec3(start_point.x + 50*cos(pipe_rad) + 10*sin(symbol_rad), 
+                                 start_point.y + 50*sin(pipe_rad) + 10*cos(symbol_rad)), 
+                            Vec3(start_point.x + 50*cos(pipe_rad) - 10*sin(symbol_rad), 
+                                 start_point.y + 50*sin(pipe_rad) - 10*cos(symbol_rad)))
+        if remain_flag:
+            return
+        
+        self.__msp.add_line(Vec3(end_point.x - 50*cos(pipe_rad) + 10*sin(symbol_rad), 
+                                 end_point.y - 50*sin(pipe_rad) + 10*cos(symbol_rad)), 
+                            Vec3(end_point.x - 50*cos(pipe_rad) - 10*sin(symbol_rad), 
+                                 end_point.y - 50*sin(pipe_rad) - 10*cos(symbol_rad)))
+        
+    def remain_pipe_line(self, start_pipe: Pipe):
+        # dx = end_pipe.point_3d.x - start_pipe.point_3d.x
+        # dy = end_pipe.point_3d.y - start_pipe.point_3d.y
+        # dz = end_pipe.point_3d.z - start_pipe.point_3d.z
+
+        pipe_rad = -pi/2
+        distance = 400
+        start_point = Vec3(start_pipe.point_cad.x, start_pipe.point_cad.y)
+        end_point = Vec3(distance*cos(pipe_rad)+start_point.x, distance*sin(pipe_rad)+start_point.y)
+
+        self.__msp.add_line(start_point, end_point)
+
+        self.__msp.add_line(Vec3(end_point.x - 10, end_point.y), Vec3(end_point.x + 10, end_point.y))
+
+        self.__pipe_symbol(start_point, end_point, pipe_rad, remain_flag=True)
+        # self.__msp.add_aligned_dim(
+        #     p1=start_point,
+        #     p2=end_point,
+        #     distance=-20,
+        #     dimstyle="custom_dimstyle",
+        #     ).render()
+
     def pipe_direction(self, pipes: list[Pipe]) -> None:
         self.__tmp_image = self.__image.copy()
 

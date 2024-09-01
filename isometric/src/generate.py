@@ -5,6 +5,7 @@ import argparse
 import numpy as np
 from logging import getLogger, DEBUG, StreamHandler, Formatter
 
+# Add the correct path for the isometric module
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from isometric.src.connect import Connect
@@ -37,17 +38,21 @@ class Iso:
     
     def generate_iso(self) -> None:
         """Generate isometric"""
-        # self.__draw.pipe_direction(self.__pipes)
+        self.__draw.pipe_direction(self.__pipes)
         self.__connect.compute_piping_relationship(self.__pipes)
-        pipe = self.__connect.find_first_pipe(self.__pipes)
-        trans_pipes = self.__connect.traverse_pipes(self.__pipes, pipe)
-        for pipe in trans_pipes:
-            relationship, distance = self.__connect.get_pare_infos(self.__pipes[pipe[0]], self.__pipes[pipe[1]])
-            self.__draw.pipe_line(self.__pipes[pipe[0]], self.__pipes[pipe[1]], relationship, distance)
-            print(pipe, relationship)
-
+        first_pipe = self.__connect.find_first_pipe(self.__pipes)
+        trans_pipes = self.__connect.traverse_pipes(self.__pipes, first_pipe)
+        for trance in trans_pipes:
+            start_pipe_num = trance[0]
+            end_pipe_num = trance[1]
+            distance = self.__connect.get_distance(self.__pipes[start_pipe_num], self.__pipes[end_pipe_num])
+            self.__draw.pipe_line(self.__pipes[start_pipe_num], self.__pipes[end_pipe_num], distance)
+        for pipe in self.__pipes:
+            if len(pipe.relationship) == pipe.candidate_num:
+                continue
+            self.__draw.remain_pipe_line(pipe)
         self.__draw.save_dxf()
-
+        
 if __name__ == "__main__":
     fmt = Formatter("[%(levelname)s] %(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
     logger = getLogger(__name__)

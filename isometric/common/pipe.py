@@ -2,6 +2,7 @@ import json
 import numpy as np
 from numpy import ndarray
 from ezdxf.math import Vec3
+from math import degrees
 
 class Point:
     def __init__(self, x: int, y: int, z: int = 0):
@@ -37,25 +38,49 @@ class Point:
         self.__z = z
 
 
+class Rotate:
+    def __init__(self, roll: int, pitch: int, yaw: int = 0):
+        self.__roll = roll
+        self.__pitch = pitch
+        self.__yaw = yaw
+
+    def __str__(self) -> str:
+        return f"Point(roll={self.__roll}, pitch={self.__pitch}, yaw={self.__yaw})"
+
+    @property
+    def roll(self) -> int:
+        return self.__roll
+    
+    @roll.setter
+    def roll(self, roll: int) -> None:
+        self.__roll = roll
+
+    @property
+    def pitch(self) -> int:
+        return self.__pitch
+    
+    @pitch.setter
+    def pitch(self, pitch: int) -> None:
+        self.__pitch = pitch
+
+    @property
+    def yaw(self) -> int:
+        return self.__yaw
+    
+    @yaw.setter
+    def yaw(self, yaw: int) -> None:
+        self.__yaw = yaw
+
+
 class Pare:
-    def __init__(self, num: int, relationship: str = "", distance: float = 0.0):
-        self.__relationship: str = relationship
+    def __init__(self, num: int, distance: float = 0.0):
         self.__num: int = num
         self.__distance: float = distance
 
     def __str__(self) -> str:
         return (f"Pare(num: {self.__num}, "
-                f"relationship: '{self.__relationship}', "
                 f"distance: {self.__distance:.2f})")
     
-    @property
-    def relationship(self) -> str:
-        return self.__relationship
-    
-    @relationship.setter
-    def relationship(self, relationship: str) -> None:
-        self.__relationship = relationship
-
     @property
     def num(self) -> int:
         return self.__num
@@ -72,6 +97,7 @@ class Pare:
     def distance(self, distance: float) -> None:
         self.__distance = distance
 
+
 class Pipe:
     def __init__(self, args, logger, obj_name, number, pose_matrix: ndarray, cam_matrix: ndarray) -> None:
         self.__args = args
@@ -86,24 +112,43 @@ class Pipe:
 
         self.__pare_list: list[Pare] = []
 
-        self.__center: Point = Point(0, 0, 0)
-
-        self.__point: Point = Point(0, 0, 0)
+        self.__point_cad: Point = Point(0, 0)
+        self.__point_2d: Point = Point(0, 0)
+        self.__point_3d: Point = Point(0, 0, 0)
 
         self.__cam_matrix: ndarray = cam_matrix
+
+        self.__relationship: list[str] = []
+
+        self.__rotate: Rotate = Rotate(0.0, 0.0, 0.0)
 
         self.__init_info()
 
     def __init_info(self) -> None:
-        direction_list = [1, 2] if self.__name != 'tee' else [1, 2, -2]
-        for direction in direction_list:
-            self.__vectors.append(self.__pose_matrix[:3, 2] if direction == -2 else -self.__pose_matrix[:3, direction])
+        self.__point_3d.x = self.__t_matrix[0]
+        self.__point_3d.y = self.__t_matrix[1]
+        self.__point_3d.z = self.__t_matrix[2]
+
+        self.__rotate.roll = degrees(np.arctan2(self.__r_matrix[2, 1], self.__r_matrix[2, 2]))
+        self.__rotate.pitch = degrees(np.arcsin(-self.__r_matrix[2, 0]))
+        self.__rotate.yaw = degrees(np.arctan2(self.__r_matrix[1, 0], self.__r_matrix[0, 0]))
+
+        if self.__name == "elbow":
+            direction_list = [1, 2]
+        else:
+            direction_list = [1, 2, -2]
         
+        self.__candidate_num: int = len(direction_list)
+        
+        for i, direction in enumerate(direction_list):
+            self.__vectors.append(self.__pose_matrix[:3, 2] if direction == -2 else -self.__pose_matrix[:3, direction])
+
         with open(self.__args.cam_path, 'r') as f:
             cam_params = json.load(f)        
         self.__cam_matrix = np.array(cam_params["cam_K"]).reshape(3, 3)
 
         self.__project_to_2d()
+
 
     def __project_to_2d(self) -> None:
         projected_point = self.__cam_matrix @ self.__t_matrix
@@ -111,8 +156,8 @@ class Pipe:
         x = projected_point[0, 0] / projected_point[2, 0]
         y = projected_point[1, 0] / projected_point[2, 0]
 
-        self.__center.x = int(x)
-        self.__center.y = int(y)
+        self.__point_2d.x = int(x)
+        self.__point_2d.y = int(y)
 
     def __str__(self) -> str:
         vectors_str = '\n'.join(map(str, self.__vectors))
@@ -129,7 +174,8 @@ class Pipe:
                 f"Rotation Matrix (R):\n{r_matrix_str}\n"
                 f"Translation Matrix (T):\n{t_matrix_str}\n"
                 f"Pare List: [{pare_list_str}]\n"
-                f"Center (Projected Point): {self.__center.x}, {self.__center.y}")
+                f"Center (Projected Point): {self.__point_2d.x}, {self.__point_2d.y}\n"
+                f"Center (3 dimation coodinates): {self.__point_3d.x}, {self.__point_3d.y}, {self.__point_3d.z}")
 
     @property
     def pose_matrix(self) -> ndarray:
@@ -154,27 +200,51 @@ class Pipe:
     @property
     def num(self) -> int:
         return self.__num
-
+    
     @property
     def pare_list(self) -> list[Pare]:
         return self.__pare_list
 
-    @property
-    def center(self) -> Point:
-        return self.__center
-
-    @center.setter
-    def center(self, center) -> None:
-        self.__center = center
-    
-    @property
-    def point(self) -> Point:
-        return self.__point
-
-    @point.setter
-    def point(self, point) -> None:
-        self.__point = point
-
     @pare_list.setter
     def pare_list(self, pare_list: list[Pare]) -> None:
         self.__pare_list = pare_list
+
+    @property
+    def point_cad(self) -> Point:
+        return self.__point_cad
+
+    @point_cad.setter
+    def point_cad(self, point_cad: Point) -> None:
+        self.__point_cad = point_cad
+
+    @property
+    def point_2d(self) -> Point:
+        return self.__point_2d
+
+    @point_2d.setter
+    def point_2d(self, point_2d: Point) -> None:
+        self.__point_2d = point_2d
+
+    @property
+    def point_3d(self) -> Point:
+        return self.__point_3d
+
+    @point_3d.setter
+    def point_3d(self, point_3d: Point) -> None:
+        self.__point_3d = point_3d
+
+    @property
+    def relationship(self) -> list[str]:
+        return self.__relationship
+    
+    @relationship.setter
+    def relationship(self, relationship: str) -> None:
+        self.__relationship.append(relationship)
+
+    @property
+    def candidate_num(self) -> int:
+        return self.__candidate_num
+    
+    @candidate_num.setter
+    def candidate_num(self, candidate_num: int) -> None:
+        self.__candidate_num = candidate_num
