@@ -19,9 +19,9 @@ To get started with `RACOON-GUI`, follow these simple steps:
 
 Ensure you have all the necessary packages installed. Open your terminal and run:
 
-    ```bash
-    pip install -r requirements.txt
-    ```
+```bash
+pip install -r requirements.txt
+```
 
 ## License
 
