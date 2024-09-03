@@ -2,27 +2,40 @@
 
 ## Introduction
 
-Welcome to `PipeIsoGen`, the generate piping isometric project.
+Welcome to **PipeIsoGen**, a project dedicated to generating piping isometric drawings. This tool utilizes advanced Python libraries and 3D modeling software to create detailed and accurate piping layouts.
 
 ## System Requirements
 
-Before you run `PipeIsoGen`, ensure your system meets the following minimal requirements:
+Before running PipeIsoGen, ensure your system meets the following minimum requirements:
 
-- **Python**: Version 3.9.6 or higher.
-- **Pytorch**: Version 1.12 or higher.
+- **Python**: Version 3.9.6
+- **PyTorch**: Version 2.1.1
+- **CUDA**: Version 12.2
 
 ## Getting Started
 
-To get started with `RACOON-GUI`, follow these simple steps:
+Follow these steps to set up and start using PipeIsoGen:
 
-1. **Install Dependencies**: 
+### 1. Install Dependencies
 
-Ensure you have all the necessary packages installed. Open your terminal and run:
+Ensure you have all the necessary packages installed by running the preparation script.
 
 ```bash
-pip install -r requirements.txt
+. scripts/prepare.sh
 ```
+
+### 2. Download Blender
+
+You need to download Blender and place it into the `SAM-6D/Render/bin` directory. Download Blender from the following link:
+
+[Download Blender (LTS 3.3)](https://www.blender.org/download/lts/3-3/)
+
+### 3. Download Pipe Model
+
+Download the Pipe model required for the project from the following link:
+
+[Download Pipe Model](https://drive.google.com/drive/folders/1KhEO_RVhnevogZZs3uMSnFBn0DWuU4DB?usp=sharing)
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
