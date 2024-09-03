@@ -1,0 +1,27 @@
+# torch==2.0.0
+# torchvision==0.15.1
+fvcore
+xformers==0.0.18
+# torchmetrics==0.10.3
+blenderproc==2.6.1
+opencv-python
+omegaconf
+ruamel.yaml
+hydra-colorlog
+hydra-core
+gdown
+pandas
+imageio
+pyrender
+# pytorch-lightning==1.8.1
+pycocotools
+distinctipy
+git+https://github.com/facebookresearch/segment-anything.git  # SAM
+ultralytics==8.0.135  # FastSAM
+timm
+gorilla-core==0.2.7.8
+trimesh==4.0.8
+gpustat==1.0.0
+imgaug
+einops
+ezdxf
