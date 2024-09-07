@@ -1,7 +1,7 @@
 defaults:
   - user: default
   - machine: local
-  - data: bop
+  # - data: bop
   - _self_
   - override hydra/hydra_logging: disabled  
   - override hydra/job_logging: disabled  

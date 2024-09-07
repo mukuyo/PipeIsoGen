@@ -127,6 +127,8 @@ class DrawUtils:
                     color = (0, 0, 255)
 
                 translation = pipe.pose_matrix[:3, 3]
+                translation = np.array([15.467042922973633, -38.80397033691406, -276.7315979003906])
+                print(translation)
                 axis_end_point_3d = translation + vector * self.__arrow_length
 
                 # Extend to the camera coordinate system to convert 3D coordinates to 2D image coordinates

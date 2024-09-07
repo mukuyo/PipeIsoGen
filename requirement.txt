@@ -1,8 +1,8 @@
-# torch==2.0.0
-# torchvision==0.15.1
+# torch==2.0.0+cu118
+# torchvision==0.15.1+cu118
 fvcore
-xformers==0.0.18
-# torchmetrics==0.10.3
+xformers==0.0.23
+torchmetrics==0.10.3
 blenderproc==2.6.1
 opencv-python
 omegaconf
@@ -13,7 +13,7 @@ gdown
 pandas
 imageio
 pyrender
-# pytorch-lightning==1.8.1
+# pytorch-lightning==1.8.1+cu118
 pycocotools
 distinctipy
 git+https://github.com/facebookresearch/segment-anything.git  # SAM
@@ -24,4 +24,9 @@ trimesh==4.0.8
 gpustat==1.0.0
 imgaug
 einops
+pyyaml
+numpy==1.23
+pillow
 ezdxf
+pyrealsense2
+open3d

@@ -3,7 +3,7 @@
 export MODE=sim
 export PIPE=test
 
-export CAD_DIR=data/model
+export CAD_DIR=data/cad_model
 export RGB_PATH=data/$MODE/images/$PIPE/rgb.png
 export DEPTH_PATH=data/$MODE/images/$PIPE/depth.png
 export CAMERA_PATH=data/$MODE/camera.json

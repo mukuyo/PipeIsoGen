@@ -3,6 +3,7 @@ import os.path as osp
 
 def download_model(output_path):
     import os
+    print(output_path)
     command = f"gdown --no-cookies --no-check-certificate -O '{output_path}/sam-6d-pem-base.pth' 1joW9IvwsaRJYxoUmGo68dBVg-HcFNyI7"
     os.system(command)
 

@@ -79,7 +79,8 @@ class ViT_AE(nn.Module):
             vit_checkpoint = os.path.join('./SAM-6D/Pose_Estimation_Model/checkpoints/', 'mae_pretrain_'+ self.vit_type +'.pth')
             if not os.path.isdir('./SAM-6D/Pose_Estimation_Model/checkpoints'):
                 os.makedirs('./SAM-6D/Pose_Estimation_Model/checkpoints')
-                model_zoo.load_url('https://dl.fbaipublicfiles.com/mae/pretrain/mae_pretrain_'+ self.vit_type +'.pth', 'checkpoints')
+            if not os.path.isfile(vit_checkpoint):
+                model_zoo.load_url('https://dl.fbaipublicfiles.com/mae/pretrain/mae_pretrain_'+ self.vit_type +'.pth', './SAM-6D/Pose_Estimation_Model/checkpoints')
 
             checkpoint = torch.load(vit_checkpoint, map_location='cpu')
             print("load pre-trained checkpoint from: %s" % vit_checkpoint)

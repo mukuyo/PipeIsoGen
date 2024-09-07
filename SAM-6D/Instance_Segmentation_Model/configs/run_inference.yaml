@@ -2,7 +2,7 @@ defaults:
   - user: default
   - machine: local
   - callback: base 
-  - data: bop
+  # - data: bop
   - model: ISM_sam
   - _self_
   - override hydra/hydra_logging: disabled  

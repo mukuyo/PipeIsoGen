@@ -102,7 +102,7 @@ __global__ void furthest_point_sampling_kernel(
       x2 = dataset[k * 3 + 0];
       y2 = dataset[k * 3 + 1];
       z2 = dataset[k * 3 + 2];
-      float mag = (x2 * x2) + (y2 * y2) + (z2 * z2);
+      // float mag = (x2 * x2) + (y2 * y2) + (z2 * z2);
       // if (mag <= 1e-3) continue;
 
       float d =

@@ -116,21 +116,22 @@ def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, c
 
     with initialize(version_base=None, config_path=conf_path):
         cfg = compose(config_name='run_inference.yaml')
-    
-    if segmentor_model == "sam":
-        with initialize(version_base=None, config_path=conf_path+"/model"):
-            cfg.model = compose(config_name='ISM_sam.yaml')
-        cfg.model.segmentor_model.stability_score_thresh = stability_score_thresh
-    elif segmentor_model == "fastsam":
-        with initialize(version_base=None, config_path=conf_path+"/model"):
-            cfg.model = compose(config_name='ISM_'+obj_name+'.yaml')
-    else:
-        raise ValueError("The segmentor_model {} is not supported now!".format(segmentor_model))
 
+    # if segmentor_model == "sam":
+    #     with initialize(version_base=None, config_path=conf_path+"/model"):
+    #         cfg.model = compose(config_name='ISM_sam.yaml')
+    #     cfg.model.segmentor_model.stability_score_thresh = stability_score_thresh
+    # elif segmentor_model == "fastsam":
+        # with initialize(version_base=None, config_path=conf_path+"/model"):
+        #     cfg.model = compose(config_name='ISM_'+obj_name+'.yaml')
+    # else:
+    #     raise ValueError("The segmentor_model {} is not supported now!".format(segmentor_model))
+    with initialize(version_base=None, config_path=conf_path+"/model"):
+        cfg.model = compose(config_name='ISM_'+obj_name+'.yaml')
     logging.info("Initializing model")
 
     model = instantiate(cfg.model)
-    
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.descriptor_model.model = model.descriptor_model.model.to(device)
     model.descriptor_model.model.device = device
@@ -249,7 +250,7 @@ if __name__ == "__main__":
     parser.add_argument("--stability_score_thresh", default=0.97, type=float, help="stability_score_thresh of SAM")
     args = parser.parse_args()
 
-    for obj_name in ['tee', 'elbow']:
+    for obj_name in ['elbow']:
         output_path = os.path.join(args.output_dir, "segmentation")
         cad_path = os.path.join(args.cad_dir, obj_name+'.ply')
         os.makedirs(output_path, exist_ok=True)

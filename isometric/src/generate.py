@@ -18,6 +18,8 @@ class Iso:
         self.__args = args
         self.__logger = logger
 
+        os.makedirs(os.path.join(self.__args.output_dir, "isometric"), exist_ok=True)
+
         self.__init_pipe()
 
         self.__draw = DrawUtils(args, logger)
