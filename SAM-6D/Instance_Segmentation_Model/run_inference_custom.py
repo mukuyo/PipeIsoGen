@@ -78,15 +78,15 @@ def visualize_all(rgb, detection_list, save_path="tmp.png"):
     img = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
     alpha = 0.33
 
-    for i, detections in enumerate(detection_list):
+    for detections in detection_list:
         colors = distinctipy.get_colors(len(detections))
-        for det in detections:
-            if det['score'] >= 0.3:
+
+        for j, det in enumerate(detections):
+            if det['score'] >= 0.2:
                 mask = rle_to_mask(det["segmentation"])
                 edge = canny(mask)
                 edge = binary_dilation(edge, np.ones((2, 2)))
-                obj_id = det["category_id"]
-                temp_id = obj_id - 1 + i
+                temp_id = j
 
                 r = int(255 * colors[temp_id][0])
                 g = int(255 * colors[temp_id][1])
@@ -187,8 +187,8 @@ def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, c
 
     detections = model.segmentor_model.generate_masks(np.array(rgb))
     detections = Detections(detections)
-    query_decriptors, query_appe_descriptors = model.descriptor_model.forward(np.array(rgb), detections)
 
+    query_decriptors, query_appe_descriptors = model.descriptor_model.forward(np.array(rgb), detections)
     # matching descriptors
     (
         idx_selected_proposals,
@@ -196,14 +196,11 @@ def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, c
         semantic_score,
         best_template,
     ) = model.compute_semantic_score(query_decriptors)
-
     # update detections
     detections.filter(idx_selected_proposals)
     query_appe_descriptors = query_appe_descriptors[idx_selected_proposals, :]
-
     # compute the appearance score
     appe_scores, ref_aux_descriptor= model.compute_appearance_score(best_template, pred_idx_objects, query_appe_descriptors)
-
     # compute the geometric score
     batch = batch_input_data(depth_path, cam_path, device)
     template_poses = get_obj_poses_from_template_level(level=2, pose_distribution="all")
@@ -214,7 +211,6 @@ def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, c
     mesh = trimesh.load_mesh(cad_path)
     model_points = mesh.sample(2048).astype(np.float32) / 1000.0
     model.ref_data["pointcloud"] = torch.tensor(model_points).unsqueeze(0).data.to(device)
-    
     image_uv = model.project_template_to_image(best_template, pred_idx_objects, batch, detections.masks)
 
     geometric_score, visible_ratio = model.compute_geometric_score(
@@ -250,7 +246,7 @@ if __name__ == "__main__":
     parser.add_argument("--stability_score_thresh", default=0.97, type=float, help="stability_score_thresh of SAM")
     args = parser.parse_args()
 
-    for obj_name in ['elbow']:
+    for obj_name in ['tee', 'elbow']:
         output_path = os.path.join(args.output_dir, "segmentation")
         cad_path = os.path.join(args.cad_dir, obj_name+'.ply')
         os.makedirs(output_path, exist_ok=True)

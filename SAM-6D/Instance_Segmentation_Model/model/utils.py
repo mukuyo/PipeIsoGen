@@ -53,6 +53,8 @@ class BatchedData:
         self.batch_size = batch_size
         if data is not None:
             self.data = data
+            if self.data.dim() == 2:
+                self.data = self.data.unsqueeze(0)
         else:
             self.data = []
 
@@ -62,6 +64,9 @@ class BatchedData:
 
     def __getitem__(self, idx):
         assert self.batch_size is not None, "batch_size is not defined"
+        if self.data.dim() == 2:
+            self.data = self.data.squeeze(0)
+
         return self.data[idx * self.batch_size : (idx + 1) * self.batch_size]
 
     def cat(self, data, dim=0):
@@ -157,6 +162,8 @@ class Detections:
         scene_id, image_id, category_id, bbox, time
         """
         boxes = xyxy_to_xywh(self.boxes)
+        if self.masks.ndim == 2:
+            self.masks = np.expand_dims(self.masks, axis=0)
         results = {
             "scene_id": scene_id,
             "image_id": frame_id,
@@ -175,6 +182,7 @@ class Detections:
     def load_from_file(self, file_path):
         data = np.load(file_path)
         masks = data["segmentation"]
+
         boxes = xywh_to_xyxy(np.array(data["bbox"]))
         data = {
             "object_ids": data["category_id"] - 1,

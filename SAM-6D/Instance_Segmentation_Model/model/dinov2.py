@@ -231,13 +231,14 @@ class CustomDINOv2(pl.LightningModule):
             image_np, proposals.masks, proposals.boxes
         )
         processed_masks = self.process_masks_proposals(proposals.masks, proposals.boxes)
-
         batch_rgbs = BatchedData(batch_size=self.chunk_size, data=processed_rgbs)
         batch_masks = BatchedData(batch_size=self.chunk_size, data=processed_masks)
+
         del processed_rgbs  # free memory
         del processed_masks
         cls_features = BatchedData(batch_size=self.chunk_size)
         patch_features = BatchedData(batch_size=self.chunk_size)
+        
         for idx_batch in range(len(batch_rgbs)):
             cls_feats, patch_feats = self.compute_cls_and_patch_features(
                 batch_rgbs[idx_batch], batch_masks[idx_batch]

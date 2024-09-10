@@ -238,7 +238,10 @@ class Instance_Segmentation_Model(pl.LightningModule):
         proposal: N_query x imageH x imageW
         depth: imageH x imageW
         """
-        (N_query, imageH, imageW) = proposal.squeeze_().shape
+        if not proposal.squeeze_().dim() == 2:
+            (N_query, imageH, imageW) = proposal.squeeze_().shape
+        else:
+            N_query = 1
         masked_depth = proposal * (depth[None, ...].repeat(N_query, 1, 1))
         translate = depth_image_to_pointcloud_translate_torch(
             masked_depth, depth_scale, cam_intrinsic
@@ -318,7 +321,6 @@ class Instance_Segmentation_Model(pl.LightningModule):
         xyxy = torch.concatenate((y1x1, y2x2), dim=-1)
 
         iou = compute_iou(xyxy, proposals.boxes)
-
         return iou, visible_ratio
 
     def test_step(self, batch, idx):

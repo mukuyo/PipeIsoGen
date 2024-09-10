@@ -1,6 +1,6 @@
 # env.sh
 
-export MODE=sim
+export MODE=real
 export PIPE=test
 
 export CAD_DIR=data/cad_model
