@@ -214,7 +214,8 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
         cloud = whole_pts.copy()[y1:y2, x1:x2, :].reshape(-1, 3)[choose, :]
         center = np.mean(cloud, axis=0)
         tmp_cloud = cloud - center[None, :]
-        flag = np.linalg.norm(tmp_cloud, axis=1) < radius * 1.2
+        flag = np.linalg.norm(tmp_cloud, axis=1) < radius * 5.0
+        print(np.linalg.norm(tmp_cloud, axis=1), radius * 5.0)
         if np.sum(flag) < 4:
             continue
         choose = choose[flag]

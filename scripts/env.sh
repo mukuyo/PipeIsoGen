@@ -1,12 +1,14 @@
 # env.sh
 
-export MODE=real
-export PIPE=test
+export IMAGE=real
+export RUN_MODE=eval
+export PIPE_MODEL=test
+export PIPE_NAMES="elbow,tee"
 
 export CAD_DIR=data/cad_model
-export RGB_PATH=data/$MODE/images/$PIPE/rgb.png
-export DEPTH_PATH=data/$MODE/images/$PIPE/depth.png
-export CAMERA_PATH=data/$MODE/camera.json
+export RGB_PATH=data/$IMAGE/images/$PIPE_MODEL/rgb.png
+export DEPTH_PATH=data/$IMAGE/images/$PIPE_MODEL/depth.png
+export CAMERA_PATH=data/$IMAGE/camera.json
 export OUTPUT_DIR=data/outputs
 
 # Render env

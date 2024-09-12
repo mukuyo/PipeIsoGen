@@ -111,23 +111,28 @@ def batch_input_data(depth_path, cam_path, device):
     batch['depth_scale'] = torch.from_numpy(depth_scale).unsqueeze(0).to(device)
     return batch
 
-def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, cam_path, obj_name, stability_score_thresh):
+def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, cam_path, stability_score_thresh):
+    output_path = os.path.join(args.output_dir, "segmentation")
+
+    pipe_list = args.pipe_names.split(',')
+    for pipe_name in pipe_list:
+        os.makedirs(os.path.join(args.cad_dir, pipe_name+'.ply'), exist_ok=True)
+        os.makedirs(os.path.join(output_path, pipe_name), exist_ok=True)
+    
     conf_path = os.path.join("./configs/")
 
     with initialize(version_base=None, config_path=conf_path):
         cfg = compose(config_name='run_inference.yaml')
 
-    # if segmentor_model == "sam":
-    #     with initialize(version_base=None, config_path=conf_path+"/model"):
-    #         cfg.model = compose(config_name='ISM_sam.yaml')
-    #     cfg.model.segmentor_model.stability_score_thresh = stability_score_thresh
-    # elif segmentor_model == "fastsam":
-        # with initialize(version_base=None, config_path=conf_path+"/model"):
-        #     cfg.model = compose(config_name='ISM_'+obj_name+'.yaml')
-    # else:
-    #     raise ValueError("The segmentor_model {} is not supported now!".format(segmentor_model))
-    with initialize(version_base=None, config_path=conf_path+"/model"):
-        cfg.model = compose(config_name='ISM_'+obj_name+'.yaml')
+    if segmentor_model == "sam":
+        with initialize(version_base=None, config_path=conf_path+"/model"):
+            cfg.model = compose(config_name='ISM_sam.yaml')
+        cfg.model.segmentor_model.stability_score_thresh = stability_score_thresh
+    elif segmentor_model == "fastsam":
+        with initialize(version_base=None, config_path=conf_path+"/model"):
+            cfg.model = compose(config_name='ISM_'+obj_name+'.yaml')
+    else:
+        raise ValueError("The segmentor_model {} is not supported now!".format(segmentor_model))
     logging.info("Initializing model")
 
     model = instantiate(cfg.model)
@@ -243,19 +248,15 @@ if __name__ == "__main__":
     parser.add_argument("--rgb_path", nargs="?", help="Path to RGB image")
     parser.add_argument("--depth_path", nargs="?", help="Path to Depth image(mm)")
     parser.add_argument("--cam_path", nargs="?", help="Path to camera information")
+    parser.add_argument("--run_mode", default='predict', help="The run mode of the model")
+    paarser.add_argument("--pipe_names", nargs="?", help="The target pipe names")
     parser.add_argument("--stability_score_thresh", default=0.97, type=float, help="stability_score_thresh of SAM")
     args = parser.parse_args()
 
-    for obj_name in ['tee', 'elbow']:
-        output_path = os.path.join(args.output_dir, "segmentation")
-        cad_path = os.path.join(args.cad_dir, obj_name+'.ply')
-        os.makedirs(output_path, exist_ok=True)
-        output_path = os.path.join(output_path, obj_name)
-        os.makedirs(output_path, exist_ok=True)
-        run_inference(
-            args.segmentor_model, args.output_dir, cad_path, args.rgb_path, args.depth_path, args.cam_path, obj_name,
-            stability_score_thresh=args.stability_score_thresh, 
-        )
+    run_inference(
+        args.segmentor_model, args.output_dir, cad_path, args.rgb_path, args.depth_path, args.cam_path, args.pipe_names,
+        stability_score_thresh=args.stability_score_thresh, 
+    )
     
     save_path = os.path.join(f"{args.output_dir}/segmentation", 'vis_ism_all.png')
     rgb = Image.open(args.rgb_path).convert("RGB")
