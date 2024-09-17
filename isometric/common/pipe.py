@@ -106,8 +106,10 @@ class Pipe:
         self.__num = number
         self.__pose_matrix = pose_matrix
         self.__vectors = []
-
+        print(self.__pose_matrix)
         self.__r_matrix: ndarray = self.__pose_matrix[:, :3]
+        # self.__r_matrix[:, [1, 2]] = self.__r_matrix[:, [2, 1]]
+        # self.__r_matrix[:, 0] = -self.__r_matrix[:, 0]
         self.__t_matrix: ndarray = self.__pose_matrix[:, 3:4]
 
         self.__pare_list: list[Pare] = []
@@ -134,7 +136,7 @@ class Pipe:
         self.__rotate.yaw = degrees(np.arctan2(self.__r_matrix[1, 0], self.__r_matrix[0, 0]))
 
         if self.__name == "elbow":
-            direction_list = [1, 2]
+            direction_list = [1, 2, 0]
         else:
             direction_list = [1, 2, -2]
         

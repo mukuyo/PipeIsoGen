@@ -14,7 +14,7 @@ lr_scheduler:
   warmup_iters: 1000
 
 model:
-  coarse_npoint: 100
+  coarse_npoint: 196
   fine_npoint: 2048
   feature_extraction:
     vit_type: vit_base

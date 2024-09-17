@@ -115,6 +115,9 @@ class FastSAM(object):
             orig_size = image.shape[:2]
         detections = self.model(image)
 
+        if detections[0].masks is None:
+            return None
+        
         masks = detections[0].masks.data
         boxes = detections[0].boxes.data[:, :4]  # two lasts:  confidence and class
 

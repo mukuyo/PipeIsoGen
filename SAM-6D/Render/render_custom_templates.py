@@ -25,11 +25,16 @@ parser.add_argument('--output_dir', help="The path to save CAD templates")
 parser.add_argument('--normalize', default=True, help="Whether to normalize CAD model or not")
 parser.add_argument('--colorize', default=False, help="Whether to colorize CAD model or not")
 parser.add_argument('--base_color', default=0.05, help="The base color used in CAD model")
+parser.add_argument('--pipe_list', help="The list of pipe names")
+parser.add_argument('--cad_type', default='', help="The type of CAD model")
 args = parser.parse_args()
 
 bproc.init()
 
-for obj_name in ['tee', 'elbow', 'straight']:
+os.makedirs(args.output_dir, exist_ok=True)
+
+pipe_list = args.pipe_list.split(',')
+for obj_name in pipe_list:
 
     # set the cnos camera path
     render_dir = os.path.dirname(os.path.abspath(__file__))
@@ -39,14 +44,13 @@ for obj_name in ['tee', 'elbow', 'straight']:
     cam_poses = np.load(cnos_cam_fpath)
 
     # calculating the scale of CAD model
-    cad_path = os.path.join(args.cad_dir, obj_name+'.ply')
+    cad_path = os.path.join(args.cad_dir, obj_name+'-'+args.cad_type+'.ply')
     if args.normalize:
         scale = get_norm_info(cad_path)
     else:
         scale = 1
 
     for idx, cam_pose in enumerate(cam_poses):
-        
         bproc.clean_up()
 
         # load object
@@ -80,15 +84,12 @@ for obj_name in ['tee', 'elbow', 'straight']:
         # render nocs
         data.update(bproc.renderer.render_nocs())
 
-        # check save folder
-        save_fpath = os.path.join(args.output_dir, "render")
-        if not os.path.exists(save_fpath):
-            os.makedirs(save_fpath)
-
         # save object name folder
-        save_fpath = os.path.join(save_fpath, obj_name)
-        if not os.path.exists(save_fpath):
-            os.makedirs(save_fpath)
+        save_fpath = os.path.join(args.output_dir, obj_name)
+        os.makedirs(save_fpath, exist_ok=True)
+
+        save_fpath = os.path.join(save_fpath, "render")
+        os.makedirs(save_fpath, exist_ok=True)
 
         # save rgb image
         color_bgr_0 = data["colors"][0]

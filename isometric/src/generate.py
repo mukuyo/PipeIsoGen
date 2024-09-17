@@ -17,13 +17,14 @@ class Iso:
     def __init__(self, args, logger) -> None:
         self.__args = args
         self.__logger = logger
+        self.image_name = "570"
 
         os.makedirs(os.path.join(self.__args.output_dir, "isometric"), exist_ok=True)
 
         self.__init_pipe()
 
         self.__draw = DrawUtils(args, logger)
-        self.__connect = Connect(args, logger)
+        # self.__connect = Connect(args, logger)
         
     def __init_pipe(self) -> None:
         self.__logger.info("Init Pipe Information")
@@ -32,15 +33,16 @@ class Iso:
         camera_matrix = np.array(cam_params["cam_K"]).reshape(3, 3)
         self.__pipes: list[Pipe] = []
         pipe_count = 0
-        for obj_name in self.__args.objects_name:
-            pose_list = np.load(os.path.join(self.__args.pose_dir, obj_name, "pose.npy"))
-            for pose_matrix in pose_list:
-                self.__pipes.append(Pipe(args, logger, obj_name, pipe_count, pose_matrix, camera_matrix))
-                pipe_count += 1
+        # for obj_name in self.__args.objects_name:
+        obj_name = "elbow"
+        pose_list = np.load(os.path.join(self.__args.output_dir, obj_name, "pose", self.image_name, "pose.npy"))
+        for pose_matrix in pose_list:
+            self.__pipes.append(Pipe(args, logger, obj_name, pipe_count, pose_matrix, camera_matrix))
+            pipe_count += 1
     
     def generate_iso(self) -> None:
         """Generate isometric"""
-        self.__draw.pipe_direction(self.__pipes)
+        self.__draw.pipe_direction(self.__pipes, os.path.join(self.__args.img_dir, f"rgb/frame{self.image_name}.png"))
         self.__connect.compute_piping_relationship(self.__pipes)
         first_pipe = self.__connect.find_first_pipe(self.__pipes)
         trans_pipes = self.__connect.traverse_pipes(self.__pipes, first_pipe)
@@ -66,11 +68,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--output_dir", nargs="?", help="Path to root directory of the output")
-    parser.add_argument("--rgb_path", nargs="?", help="Path to RGB image")
-    parser.add_argument("--depth_path", nargs="?", help="Path to Depth image(mm)")
+    parser.add_argument("--img_dir", nargs="?", help="Path to image")
     parser.add_argument("--cam_path", nargs="?", help="Path to camera information")
     parser.add_argument("--pose_dir", nargs="?", help="Path to pose estimation information")
-    parser.add_argument("--objects_name", default=['tee', 'elbow'], help="Target object name")
+    parser.add_argument("--objects_name", default=['elbow', 'tee'], help="Target object name")
     args = parser.parse_args()
 
     logger.info('start predict')

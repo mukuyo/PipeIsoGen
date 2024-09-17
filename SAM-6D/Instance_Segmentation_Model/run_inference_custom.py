@@ -54,7 +54,7 @@ def visualize(rgb, detections, save_path="tmp.png"):
     alpha = 0.33
 
     for det in detections:
-        if det['score'] >= 0.4:
+        if det['score'] >= 0.1:
             mask = rle_to_mask(det["segmentation"])
             edge = canny(mask)
             edge = binary_dilation(edge, np.ones((2, 2)))
@@ -104,6 +104,7 @@ def batch_input_data(depth_path, cam_path, device):
     cam_info = load_json(cam_path)
     depth = np.array(imageio.imread(depth_path)).astype(np.int32)
     cam_K = np.array(cam_info['cam_K']).reshape((3, 3))
+
     depth_scale = np.array(cam_info['depth_scale'])
 
     batch["depth"] = torch.from_numpy(depth).unsqueeze(0).to(device)
@@ -111,153 +112,162 @@ def batch_input_data(depth_path, cam_path, device):
     batch['depth_scale'] = torch.from_numpy(depth_scale).unsqueeze(0).to(device)
     return batch
 
-def run_inference(segmentor_model, output_dir, cad_path, rgb_path, depth_path, cam_path, stability_score_thresh):
-    output_path = os.path.join(args.output_dir, "segmentation")
-
-    pipe_list = args.pipe_names.split(',')
-    for pipe_name in pipe_list:
-        os.makedirs(os.path.join(args.cad_dir, pipe_name+'.ply'), exist_ok=True)
-        os.makedirs(os.path.join(output_path, pipe_name), exist_ok=True)
-    
+def run_inference(segmentor_model, output_dir, cad_dir, cad_type, img_dir, cam_path, pipe_lists, stability_score_thresh):
     conf_path = os.path.join("./configs/")
 
     with initialize(version_base=None, config_path=conf_path):
         cfg = compose(config_name='run_inference.yaml')
-
-    if segmentor_model == "sam":
-        with initialize(version_base=None, config_path=conf_path+"/model"):
-            cfg.model = compose(config_name='ISM_sam.yaml')
-        cfg.model.segmentor_model.stability_score_thresh = stability_score_thresh
-    elif segmentor_model == "fastsam":
-        with initialize(version_base=None, config_path=conf_path+"/model"):
-            cfg.model = compose(config_name='ISM_'+obj_name+'.yaml')
-    else:
-        raise ValueError("The segmentor_model {} is not supported now!".format(segmentor_model))
-    logging.info("Initializing model")
-
-    model = instantiate(cfg.model)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.descriptor_model.model = model.descriptor_model.model.to(device)
-    model.descriptor_model.model.device = device
-    # if there is predictor in the model, move it to device
-    if hasattr(model.segmentor_model, "predictor"):
-        model.segmentor_model.predictor.model = (
-            model.segmentor_model.predictor.model.to(device)
-        )
-    else:
-        model.segmentor_model.model.setup_model(device=device, verbose=True)
-    logging.info(f"Moving models to {device} done!")
+    
+    model = []
+    pipe_list = pipe_lists.split(',')
+    for i, pipe_name in enumerate(pipe_list):
+        os.makedirs(os.path.join(args.output_dir, pipe_name), exist_ok=True)
+        os.makedirs(os.path.join(args.output_dir, pipe_name, "segmentation"), exist_ok=True)
         
-    
-    logging.info("Initializing template")
-    template_dir = os.path.join(output_dir, "render/"+obj_name)
+        if segmentor_model == "sam":
+            with initialize(version_base=None, config_path=conf_path+"/model"):
+                cfg.model = compose(config_name='ISM_sam.yaml')
+            cfg.model.segmentor_model.stability_score_thresh = stability_score_thresh
+        elif segmentor_model == "fastsam":
+            with initialize(version_base=None, config_path=conf_path+"/model"):
+                cfg.model = compose(config_name='ISM_'+pipe_name+'.yaml')
+        else:
+            raise ValueError("The segmentor_model {} is not supported now!".format(segmentor_model))
+        logging.info("Initializing model")
 
-    num_templates = len(glob.glob(f"{template_dir}/*.npy"))
-    boxes, masks, templates = [], [], []
-    for idx in range(num_templates):
-        image = Image.open(os.path.join(template_dir, 'rgb_'+str(idx)+'.png'))
-        mask = Image.open(os.path.join(template_dir, 'mask_'+str(idx)+'.png'))
-        boxes.append(mask.getbbox())
+        model.append(instantiate(cfg.model))
 
-        image = torch.from_numpy(np.array(image.convert("RGB")) / 255).float()
-        mask = torch.from_numpy(np.array(mask.convert("L")) / 255).float()
-        image = image * mask[:, :, None]
-        templates.append(image)
-        masks.append(mask.unsqueeze(-1))
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model[i].descriptor_model.model = model[i].descriptor_model.model.to(device)
+        model[i].descriptor_model.model.device = device
+        # if there is predictor in the model, move it to device
+        if hasattr(model[i].segmentor_model, "predictor"):
+            model[i].segmentor_model.predictor.model = (
+                model[i].segmentor_model.predictor.model.to(device)
+            )
+        else:
+            model[i].segmentor_model.model.setup_model(device=device, verbose=True)
+        logging.info(f"Moving models to {device} done!")
+            
         
-    templates = torch.stack(templates).permute(0, 3, 1, 2)
-    masks = torch.stack(masks).permute(0, 3, 1, 2)
-    boxes = torch.tensor(np.array(boxes))
-    
-    processing_config = OmegaConf.create(
-        {
-            "image_size": 224,
-        }
-    )
-    proposal_processor = CropResizePad(processing_config.image_size)
-    templates = proposal_processor(images=templates, boxes=boxes).to(device)
-    masks_cropped = proposal_processor(images=masks, boxes=boxes).to(device)
+        logging.info("Initializing template")
+        template_dir = os.path.join(output_dir, pipe_name+"/render")
 
-    model.ref_data = {}
-    model.ref_data["descriptors"] = model.descriptor_model.compute_features(
-                    templates, token_name="x_norm_clstoken"
-                ).unsqueeze(0).data
-    model.ref_data["appe_descriptors"] = model.descriptor_model.compute_masked_patch_feature(
-                    templates, masks_cropped[:, 0, :, :]
-                ).unsqueeze(0).data
-    
-    # run inference
-    rgb = Image.open(rgb_path).convert("RGB")
+        num_templates = len(glob.glob(f"{template_dir}/*.npy"))
+        boxes, masks, templates = [], [], []
+        for idx in range(num_templates):
+            image = Image.open(os.path.join(template_dir, 'rgb_'+str(idx)+'.png'))
+            mask = Image.open(os.path.join(template_dir, 'mask_'+str(idx)+'.png'))
+            boxes.append(mask.getbbox())
 
-    detections = model.segmentor_model.generate_masks(np.array(rgb))
-    detections = Detections(detections)
-
-    query_decriptors, query_appe_descriptors = model.descriptor_model.forward(np.array(rgb), detections)
-    # matching descriptors
-    (
-        idx_selected_proposals,
-        pred_idx_objects,
-        semantic_score,
-        best_template,
-    ) = model.compute_semantic_score(query_decriptors)
-    # update detections
-    detections.filter(idx_selected_proposals)
-    query_appe_descriptors = query_appe_descriptors[idx_selected_proposals, :]
-    # compute the appearance score
-    appe_scores, ref_aux_descriptor= model.compute_appearance_score(best_template, pred_idx_objects, query_appe_descriptors)
-    # compute the geometric score
-    batch = batch_input_data(depth_path, cam_path, device)
-    template_poses = get_obj_poses_from_template_level(level=2, pose_distribution="all")
-    template_poses[:, :3, 3] *= 0.4
-    poses = torch.tensor(template_poses).to(torch.float32).to(device)
-    model.ref_data["poses"] =  poses[load_index_level_in_level2(0, "all"), :, :]
-
-    mesh = trimesh.load_mesh(cad_path)
-    model_points = mesh.sample(2048).astype(np.float32) / 1000.0
-    model.ref_data["pointcloud"] = torch.tensor(model_points).unsqueeze(0).data.to(device)
-    image_uv = model.project_template_to_image(best_template, pred_idx_objects, batch, detections.masks)
-
-    geometric_score, visible_ratio = model.compute_geometric_score(
-        image_uv, detections, query_appe_descriptors, ref_aux_descriptor, visible_thred=model.visible_thred
+            image = torch.from_numpy(np.array(image.convert("RGB")) / 255).float()
+            mask = torch.from_numpy(np.array(mask.convert("L")) / 255).float()
+            image = image * mask[:, :, None]
+            templates.append(image)
+            masks.append(mask.unsqueeze(-1))
+            
+        templates = torch.stack(templates).permute(0, 3, 1, 2)
+        masks = torch.stack(masks).permute(0, 3, 1, 2)
+        boxes = torch.tensor(np.array(boxes))
+        
+        processing_config = OmegaConf.create(
+            {
+                "image_size": 224,
+            }
         )
+        proposal_processor = CropResizePad(processing_config.image_size)
+        templates = proposal_processor(images=templates, boxes=boxes).to(device)
+        masks_cropped = proposal_processor(images=masks, boxes=boxes).to(device)
 
-    # final score
-    final_score = (semantic_score + appe_scores + geometric_score*visible_ratio) / (1 + 1 + visible_ratio)
+        model[i].ref_data = {}
+        model[i].ref_data["descriptors"] = model[i].descriptor_model.compute_features(
+                        templates, token_name="x_norm_clstoken"
+                    ).unsqueeze(0).data
+        model[i].ref_data["appe_descriptors"] = model[i].descriptor_model.compute_masked_patch_feature(
+                        templates, masks_cropped[:, 0, :, :]
+                    ).unsqueeze(0).data
+        
+    for _img_num, _ in enumerate(tqdm(glob.glob(img_dir + "/rgb/*.png"))):
+        # run inference
+        img_num = str(_img_num*10)
+        for i, pipe_name in enumerate(pipe_list):
+            os.makedirs(os.path.join(output_dir, pipe_name, "segmentation", img_num), exist_ok=True)
 
-    detections.add_attribute("scores", final_score)
-    detections.add_attribute("object_ids", torch.zeros_like(final_score))   
-         
-    detections.to_numpy()
+            rgb_path = os.path.join(img_dir, "rgb", "frame"+img_num+'.png')
+            depth_path = os.path.join(img_dir, "depth", "frame"+img_num+'.png')
 
-    save_path = f"{output_dir}/segmentation/{obj_name}/detection_ism"
-    detections.save_to_file(0, 0, 0, save_path, "Custom", return_results=False)
-    detections = convert_npz_to_json(idx=0, list_npz_paths=[save_path+".npz"])
-    save_json_bop23(save_path+".json", detections)
+            rgb = Image.open(rgb_path).convert("RGB")
 
-    save_path = f"{output_dir}/segmentation/{obj_name}"
-    visualize(rgb, detections, f"{save_path}/vis_ism.png")
-    
-    detection_list.append(detections)
+            detections = model[i].segmentor_model.generate_masks(np.array(rgb))
+            if detections is None:
+                continue
+            
+            detections = Detections(detections)
+
+            query_decriptors, query_appe_descriptors = model[i].descriptor_model.forward(np.array(rgb), detections)
+            # matching descriptors
+            (
+                idx_selected_proposals,
+                pred_idx_objects,
+                semantic_score,
+                best_template,
+            ) = model[i].compute_semantic_score(query_decriptors)
+            # update detections
+            detections.filter(idx_selected_proposals)
+            query_appe_descriptors = query_appe_descriptors[idx_selected_proposals, :]
+            # compute the appearance score
+            appe_scores, ref_aux_descriptor= model[i].compute_appearance_score(best_template, pred_idx_objects, query_appe_descriptors)
+            # compute the geometric score
+            batch = batch_input_data(depth_path, cam_path, device)
+            template_poses = get_obj_poses_from_template_level(level=2, pose_distribution="all")
+            template_poses[:, :3, 3] *= 0.4
+            poses = torch.tensor(template_poses).to(torch.float32).to(device)
+            model[i].ref_data["poses"] =  poses[load_index_level_in_level2(0, "all"), :, :]
+
+            mesh = trimesh.load_mesh(os.path.join(cad_dir, pipe_name+'-'+cad_type+'.ply'))
+            model_points = mesh.sample(2048).astype(np.float32) / 1000.0
+            model[i].ref_data["pointcloud"] = torch.tensor(model_points).unsqueeze(0).data.to(device)
+            image_uv = model[i].project_template_to_image(best_template, pred_idx_objects, batch, detections.masks)
+
+            geometric_score, visible_ratio = model[i].compute_geometric_score(
+                image_uv, detections, query_appe_descriptors, ref_aux_descriptor, visible_thred=model[i].visible_thred
+                )
+
+            # final score
+            final_score = (semantic_score + appe_scores + geometric_score*visible_ratio) / (1 + 1 + visible_ratio)
+
+            detections.add_attribute("scores", final_score)
+            detections.add_attribute("object_ids", torch.zeros_like(final_score))   
+                
+            detections.to_numpy()
+
+            save_path = f"{output_dir}/{pipe_name}/segmentation/{img_num}/detection_ism"
+            detections.save_to_file(0, 0, 0, save_path, "Custom", return_results=False)
+            detections = convert_npz_to_json(idx=0, list_npz_paths=[save_path+".npz"])
+            save_json_bop23(save_path+".json", detections)
+
+            visualize(rgb, detections, f"{output_dir}/{pipe_name}/segmentation/{img_num}/vis_ism.png")
+            
+            detection_list.append(detections)
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--segmentor_model", default='sam', help="The segmentor model in ISM")
     parser.add_argument("--output_dir", nargs="?", help="Path to root directory of the output")
     parser.add_argument("--cad_dir", nargs="?", help="Path to CAD(mm)")
-    parser.add_argument("--rgb_path", nargs="?", help="Path to RGB image")
-    parser.add_argument("--depth_path", nargs="?", help="Path to Depth image(mm)")
+    parser.add_argument("--cad_type", default='', help="The type of CAD model")
+    parser.add_argument("--img_dir", nargs="?", help="Path to RGB image")
     parser.add_argument("--cam_path", nargs="?", help="Path to camera information")
     parser.add_argument("--run_mode", default='predict', help="The run mode of the model")
-    paarser.add_argument("--pipe_names", nargs="?", help="The target pipe names")
+    parser.add_argument("--pipe_list", nargs="?", help="The target pipe names")
     parser.add_argument("--stability_score_thresh", default=0.97, type=float, help="stability_score_thresh of SAM")
     args = parser.parse_args()
 
     run_inference(
-        args.segmentor_model, args.output_dir, cad_path, args.rgb_path, args.depth_path, args.cam_path, args.pipe_names,
+        args.segmentor_model, args.output_dir, args.cad_dir, args.cad_type, args.img_dir, args.cam_path, args.pipe_list,
         stability_score_thresh=args.stability_score_thresh, 
     )
     
-    save_path = os.path.join(f"{args.output_dir}/segmentation", 'vis_ism_all.png')
-    rgb = Image.open(args.rgb_path).convert("RGB")
-    vis_img = visualize_all(rgb, detection_list, save_path)
+    # save_path = os.path.join(f"{args.output_dir}/segmentation", 'vis_ism_all.png')
+    # rgb = Image.open(args.rgb_path).convert("RGB")
+    # vis_img = visualize_all(rgb, detection_list, save_path)

@@ -15,7 +15,7 @@ class DrawUtils:
         self.__args = args
         self.__logger = logger
 
-        self.__image = cv2.imread(self.__args.rgb_path)
+        # self.__image = cv2.imread(self.__args.image_path)
         with open(self.__args.cam_path, 'r') as f:
             cam_params = json.load(f)        
         self.__camera_matrix = np.array(cam_params["cam_K"]).reshape(3, 3)
@@ -114,9 +114,9 @@ class DrawUtils:
         #     dimstyle="custom_dimstyle",
         #     ).render()
 
-    def pipe_direction(self, pipes: list[Pipe]) -> None:
-        self.__tmp_image = self.__image.copy()
-
+    def pipe_direction(self, pipes: list[Pipe], image_path) -> None:
+        self.__image = cv2.imread(image_path)
+        
         for pipe in pipes:
             for i, vector in enumerate(pipe.vectors):
                 if i == 0:
@@ -127,7 +127,7 @@ class DrawUtils:
                     color = (0, 0, 255)
 
                 translation = pipe.pose_matrix[:3, 3]
-                translation = np.array([15.467042922973633, -38.80397033691406, -276.7315979003906])
+                # translation = np.array([15.467042922973633, -38.80397033691406, -276.7315979003906])
                 print(translation)
                 axis_end_point_3d = translation + vector * self.__arrow_length
 
@@ -148,10 +148,10 @@ class DrawUtils:
                 end_point = (int(end_point_2d[0]), int(end_point_2d[1]))
 
                 # Draw the center of the object for debugging (red dot)
-                cv2.circle(self.__tmp_image, start_point, 2, color, -1)  # Red dot
+                cv2.circle(self.__image, start_point, 2, color, -1)  # Red dot
 
                 # Draw the opposite side of the Z-axis direction vector on the image
-                cv2.arrowedLine(self.__tmp_image, start_point, end_point, color, 3)  # Red arrow
+                cv2.arrowedLine(self.__image, start_point, end_point, color, 2)  # Red arrow
 
                 # Draw the pipe number
                 pipe_number_text = f"{pipe.num}"
@@ -163,11 +163,11 @@ class DrawUtils:
                 text_size, _ = cv2.getTextSize(pipe_number_text, font, font_scale, thickness)
                 text_x = start_point[0] - text_size[0] // 2
                 text_y = start_point[1] - text_size[1] // 2
-                cv2.putText(self.__tmp_image, pipe_number_text, (text_x, text_y), font, font_scale, color, thickness)
+                cv2.putText(self.__image, pipe_number_text, (text_x, text_y), font, font_scale, color, thickness)
 
         # Save the image
         save_path = os.path.join(self.__args.output_dir, "isometric/", "pipe_direction.png")
-        cv2.imwrite(save_path, self.__tmp_image)
+        cv2.imwrite(save_path, self.__image)
         self.__logger.info(f"Output image saved to {save_path}")
 
     def save_dxf(self) -> None:
