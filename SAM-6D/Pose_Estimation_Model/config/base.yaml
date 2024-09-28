@@ -83,11 +83,11 @@ test_dataset:
   template_dir: ../Data/BOP-Templates
   img_size: 224
   n_sample_observed_point: 2048
-  n_sample_model_point: 1024
-  n_sample_template_point: 5000
+  n_sample_model_point: 2048
+  n_sample_template_point: 1000
   minimum_n_point: 8
   rgb_mask_flag: True
-  seg_filter_score: 0.25
+  seg_filter_score: 0.05
   n_template_view: 42
 
 
@@ -99,6 +99,6 @@ test_dataloader:
   pin_memory    : False
 
 
-rd_seed: 1
+rd_seed: 2
 training_epoch: 15
 iters_to_print: 50

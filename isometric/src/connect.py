@@ -14,16 +14,14 @@ class Connect:
         self.__args = args
         self.__logger = logger
         self.__angle_threshold = 20.0  # Angle threshold in degrees for determining if pipes are facing each other
-        
-        self.__depth_image = cv2.imread(self.__args.depth_path, cv2.IMREAD_UNCHANGED)
 
         with open(self.__args.cam_path, 'r') as f:
             cam_params = json.load(f)        
         camera_matrix = np.array(cam_params["cam_K"]).reshape(3, 3)
 
         self.__intrinsics = intrinsics()
-        self.__intrinsics.width = self.__depth_image.shape[1]  # depth image width
-        self.__intrinsics.height = self.__depth_image.shape[0]  # depth image height
+        self.__intrinsics.width = 640  # depth image width
+        self.__intrinsics.height = 480  # depth image height
         self.__intrinsics.fx = camera_matrix[0, 0]   # fx
         self.__intrinsics.fy = camera_matrix[1, 1]   # fy
         self.__intrinsics.ppx = camera_matrix[0, 2]  # cx
@@ -52,10 +50,11 @@ class Connect:
 
         return bottom_left_pipe
     
-    def get_distance(self, pipe1: Pipe, pipe2: Pipe):
+    def get_distance(self, pipe1: Pipe, pipe2: Pipe, depth_path) -> float:
         """compute distance between two pipes"""
-        depth1 = float(self.__depth_image[int(pipe1.point_2d.y), int(pipe1.point_2d.x)])
-        depth2 = float(self.__depth_image[int(pipe2.point_2d.y), int(pipe2.point_2d.x)])
+        depth_image = cv2.imread(depth_path, cv2.IMREAD_ANYDEPTH)
+        depth1 = float(depth_image[int(pipe1.point_2d.y), int(pipe1.point_2d.x)])
+        depth2 = float(depth_image[int(pipe2.point_2d.y), int(pipe2.point_2d.x)])
 
         point1 = rs2_deproject_pixel_to_point(self.__intrinsics, [pipe1.point_2d.x, pipe1.point_2d.y], depth1)
         point2 = rs2_deproject_pixel_to_point(self.__intrinsics, [pipe2.point_2d.x, pipe2.point_2d.y], depth2)

@@ -114,8 +114,8 @@ class DrawUtils:
         #     dimstyle="custom_dimstyle",
         #     ).render()
 
-    def pipe_direction(self, pipes: list[Pipe], image_path) -> None:
-        self.__image = cv2.imread(image_path)
+    def pipe_direction(self, pipes: list[Pipe], save_dir, img_num: int) -> None:
+        self.__image = cv2.imread(os.path.join(self.__args.img_dir, f"rgb/frame{str(img_num)}.png"))
         
         for pipe in pipes:
             for i, vector in enumerate(pipe.vectors):
@@ -128,7 +128,7 @@ class DrawUtils:
 
                 translation = pipe.pose_matrix[:3, 3]
                 # translation = np.array([15.467042922973633, -38.80397033691406, -276.7315979003906])
-                print(translation)
+
                 axis_end_point_3d = translation + vector * self.__arrow_length
 
                 # Extend to the camera coordinate system to convert 3D coordinates to 2D image coordinates
@@ -166,12 +166,11 @@ class DrawUtils:
                 cv2.putText(self.__image, pipe_number_text, (text_x, text_y), font, font_scale, color, thickness)
 
         # Save the image
-        save_path = os.path.join(self.__args.output_dir, "isometric/", "pipe_direction.png")
+        save_path = os.path.join(save_dir, "pipe_direction.png")
         cv2.imwrite(save_path, self.__image)
-        self.__logger.info(f"Output image saved to {save_path}")
 
-    def save_dxf(self) -> None:
-        self.__doc.saveas(os.path.join(self.__args.output_dir, "isometric/", "pipe.dxf"))
+    def save_dxf(self, img_num) -> None:
+        self.__doc.saveas(os.path.join(self.__args.output_dir, "isometric", str(img_num), "pipe.dxf"))
 
     def plot_vectors_3d(self) -> None:
         """Plot vectors in 3D space with proper origins"""

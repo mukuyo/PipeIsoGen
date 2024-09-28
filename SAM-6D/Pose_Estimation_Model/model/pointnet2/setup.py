@@ -32,5 +32,5 @@ setup(
                 "-D__CUDA_NO_HALF2_OPERATORS__",
             ]},)
     ],
-    cmdclass={'build_ext': BuildExtension.with_options(use_ninja=False)}
+    cmdclass={'build_ext': BuildExtension.with_options(use_ninja=True)}
 )

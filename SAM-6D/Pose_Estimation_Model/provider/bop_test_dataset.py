@@ -137,12 +137,12 @@ class BOPTestset():
         choose = choose[flag]
         cloud = cloud[flag]
 
-        if len(choose) <= self.n_sample_observed_point:
-            choose_idx = np.random.choice(np.arange(len(choose)), self.n_sample_observed_point)
-        else:
-            choose_idx = np.random.choice(np.arange(len(choose)), self.n_sample_observed_point, replace=False)
-        choose = choose[choose_idx]
-        cloud = cloud[choose_idx]
+        # if len(choose) <= self.n_sample_observed_point:
+        #     choose_idx = np.random.choice(np.arange(len(choose)), self.n_sample_observed_point)
+        # else:
+        #     choose_idx = np.random.choice(np.arange(len(choose)), self.n_sample_observed_point, replace=False)
+        # choose = choose[choose_idx]
+        # cloud = cloud[choose_idx]
 
         # rgb
         rgb = get_bop_image(inst, [y1,y2,x1,x2], self.img_size, mask if self.rgb_mask_flag else None)

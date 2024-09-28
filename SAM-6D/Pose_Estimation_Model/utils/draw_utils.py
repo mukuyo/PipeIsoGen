@@ -244,7 +244,7 @@ def draw_detections(image, pred_rots, pred_trans, model_points, intrinsics, gt_i
     np.save(os.path.join(save_dir, "pose.npy"), np.array(combined_list))
     return draw_image_bbox
 
-def draw_detections_all(image, pred_rot_list, pred_tran_list, model_point_list, intrinsic_list, save_path, object_list):
+def draw_detections_all(image, pred_rot_list, pred_tran_list, model_point_list, intrinsic_list, save_dir, object_list, img_num):
     draw_image_bbox = image.copy()
 
     for i, obj_name in enumerate(object_list):
@@ -286,8 +286,8 @@ def draw_detections_all(image, pred_rot_list, pred_tran_list, model_point_list, 
             
             imgpts_list.append(imgpts)
 
-        np.save(os.path.join(save_path, obj_name+"/pose.npy"), np.array(combined_list))
-        np.save(os.path.join(save_path, obj_name+"/3d_bbox_projected.npy"), imgpts_list)
+        np.save(os.path.join(save_dir, obj_name, img_num, "pose.npy"), np.array(combined_list))
+        np.save(os.path.join(save_dir, obj_name, img_num, "3d_bbox_projected.npy"), imgpts_list)
         
 
     return draw_image_bbox

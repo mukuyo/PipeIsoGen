@@ -84,11 +84,11 @@ for obj_name in pipe_list:
         # render nocs
         data.update(bproc.renderer.render_nocs())
 
-        # save object name folder
-        save_fpath = os.path.join(args.output_dir, obj_name)
+        save_fpath = os.path.join(args.output_dir, "render")
         os.makedirs(save_fpath, exist_ok=True)
 
-        save_fpath = os.path.join(save_fpath, "render")
+        # save object name folder
+        save_fpath = os.path.join(save_fpath, obj_name)
         os.makedirs(save_fpath, exist_ok=True)
 
         # save rgb image

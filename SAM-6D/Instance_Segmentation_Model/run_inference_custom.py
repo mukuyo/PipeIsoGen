@@ -54,7 +54,7 @@ def visualize(rgb, detections, save_path="tmp.png"):
     alpha = 0.33
 
     for det in detections:
-        if det['score'] >= 0.1:
+        if det['score'] >= 0.01:
             mask = rle_to_mask(det["segmentation"])
             edge = canny(mask)
             edge = binary_dilation(edge, np.ones((2, 2)))
@@ -82,7 +82,7 @@ def visualize_all(rgb, detection_list, save_path="tmp.png"):
         colors = distinctipy.get_colors(len(detections))
 
         for j, det in enumerate(detections):
-            if det['score'] >= 0.2:
+            if det['score'] >= 0.01:
                 mask = rle_to_mask(det["segmentation"])
                 edge = canny(mask)
                 edge = binary_dilation(edge, np.ones((2, 2)))
@@ -121,8 +121,8 @@ def run_inference(segmentor_model, output_dir, cad_dir, cad_type, img_dir, cam_p
     model = []
     pipe_list = pipe_lists.split(',')
     for i, pipe_name in enumerate(pipe_list):
-        os.makedirs(os.path.join(args.output_dir, pipe_name), exist_ok=True)
-        os.makedirs(os.path.join(args.output_dir, pipe_name, "segmentation"), exist_ok=True)
+        os.makedirs(os.path.join(args.output_dir, "segmentation"), exist_ok=True)
+        os.makedirs(os.path.join(args.output_dir, "segmentation", pipe_name), exist_ok=True)
         
         if segmentor_model == "sam":
             with initialize(version_base=None, config_path=conf_path+"/model"):
@@ -141,17 +141,17 @@ def run_inference(segmentor_model, output_dir, cad_dir, cad_type, img_dir, cam_p
         model[i].descriptor_model.model = model[i].descriptor_model.model.to(device)
         model[i].descriptor_model.model.device = device
         # if there is predictor in the model, move it to device
-        if hasattr(model[i].segmentor_model, "predictor"):
-            model[i].segmentor_model.predictor.model = (
-                model[i].segmentor_model.predictor.model.to(device)
-            )
-        else:
-            model[i].segmentor_model.model.setup_model(device=device, verbose=True)
+        # if hasattr(model[i].segmentor_model, "predictor"):
+        #     model[i].segmentor_model.predictor.model = (
+        #         model[i].segmentor_model.predictor.model.to(device)
+        #     )
+        # else:
+        #     model[i].segmentor_model.model.setup_model(device=device, verbose=True)
         logging.info(f"Moving models to {device} done!")
             
         
         logging.info("Initializing template")
-        template_dir = os.path.join(output_dir, pipe_name+"/render")
+        template_dir = os.path.join(output_dir, f"render/{pipe_name}")
 
         num_templates = len(glob.glob(f"{template_dir}/*.npy"))
         boxes, masks, templates = [], [], []
@@ -186,12 +186,16 @@ def run_inference(segmentor_model, output_dir, cad_dir, cad_type, img_dir, cam_p
         model[i].ref_data["appe_descriptors"] = model[i].descriptor_model.compute_masked_patch_feature(
                         templates, masks_cropped[:, 0, :, :]
                     ).unsqueeze(0).data
-        
+    
+    save_path = os.path.join(output_dir, "segmentation", "all")
+    os.makedirs(save_path, exist_ok=True)
+
     for _img_num, _ in enumerate(tqdm(glob.glob(img_dir + "/rgb/*.png"))):
         # run inference
         img_num = str(_img_num*10)
+        detection_list = []
         for i, pipe_name in enumerate(pipe_list):
-            os.makedirs(os.path.join(output_dir, pipe_name, "segmentation", img_num), exist_ok=True)
+            os.makedirs(os.path.join(output_dir, "segmentation", pipe_name, img_num), exist_ok=True)
 
             rgb_path = os.path.join(img_dir, "rgb", "frame"+img_num+'.png')
             depth_path = os.path.join(img_dir, "depth", "frame"+img_num+'.png')
@@ -241,15 +245,18 @@ def run_inference(segmentor_model, output_dir, cad_dir, cad_type, img_dir, cam_p
                 
             detections.to_numpy()
 
-            save_path = f"{output_dir}/{pipe_name}/segmentation/{img_num}/detection_ism"
-            detections.save_to_file(0, 0, 0, save_path, "Custom", return_results=False)
-            detections = convert_npz_to_json(idx=0, list_npz_paths=[save_path+".npz"])
-            save_json_bop23(save_path+".json", detections)
+            save_path = f"{output_dir}/segmentation/{pipe_name}/{img_num}"
+            detections.save_to_file(0, 0, 0, os.path.join(save_path, "detection_ism"), "Custom", return_results=False)
+            detections = convert_npz_to_json(idx=0, list_npz_paths=[os.path.join(save_path, "detection_ism")+".npz"])
+            save_json_bop23(os.path.join(save_path, "detection_ism.json"), detections)
 
-            visualize(rgb, detections, f"{output_dir}/{pipe_name}/segmentation/{img_num}/vis_ism.png")
+            visualize(rgb, detections, os.path.join(save_path, "vis_ism.png"))
             
             detection_list.append(detections)
-    
+        
+        rgb = Image.open(rgb_path).convert("RGB")
+        visualize_all(rgb, detection_list, os.path.join(os.path.join(output_dir, "segmentation", "all", f"vis_all_ism_{img_num}.png")))
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--segmentor_model", default='sam', help="The segmentor model in ISM")
@@ -267,7 +274,3 @@ if __name__ == "__main__":
         args.segmentor_model, args.output_dir, args.cad_dir, args.cad_type, args.img_dir, args.cam_path, args.pipe_list,
         stability_score_thresh=args.stability_score_thresh, 
     )
-    
-    # save_path = os.path.join(f"{args.output_dir}/segmentation", 'vis_ism_all.png')
-    # rgb = Image.open(args.rgb_path).convert("RGB")
-    # vis_img = visualize_all(rgb, detection_list, save_path)

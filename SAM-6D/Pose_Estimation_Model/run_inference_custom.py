@@ -106,12 +106,12 @@ rgb_transform = transforms.Compose([transforms.ToTensor(),
 def visualize(rgb, pred_rot, pred_trans, model_points, K, gt_K, save_dir, id, gt_rots, gt_trans, pose_gt, model_points_gt):
     img = draw_detections(rgb, pred_rot, pred_trans, model_points, K, gt_K, gt_rots, gt_trans, pose_gt, model_points_gt, color=(255, 0, 0), save_dir=save_dir)
     img = Image.fromarray(np.uint8(img))
-    img.save(save_dir + f'/{id}.png')
+    img.save(save_dir + f'/{id}/{id}.png')
 
-def visualize_all(rgb, pred_rot_list, pred_trans_list, model_points_list, K_list, save_path, object_list):
-    img = draw_detections_all(rgb, pred_rot_list, pred_trans_list, model_points_list, K_list, save_path, object_list)
+def visualize_all(rgb, pred_rot_list, pred_trans_list, model_points_list, K_list, save_dir, object_list, img_num):
+    img = draw_detections_all(rgb, pred_rot_list, pred_trans_list, model_points_list, K_list, save_dir, object_list, img_num)
     img = Image.fromarray(np.uint8(img))
-    img.save(os.path.join(save_path, 'vis_pem_all.png'))
+    img.save(os.path.join(save_dir, f'all/vis_pem_all_{img_num}.png'))
 
 def _get_template(path, cfg, tem_index=1):
     rgb_path = os.path.join(path, 'rgb_'+str(tem_index)+'.png')
@@ -142,6 +142,7 @@ def _get_template(path, cfg, tem_index=1):
     xyz = xyz[y1:y2, x1:x2, :].reshape((-1, 3))[choose, :]
 
     rgb_choose = get_resize_rgb_choose(choose, [y1, y2, x1, x2], cfg.img_size)
+
     return rgb, rgb_choose, xyz
 
 def project_points(points, intrinsics, pose):
@@ -267,15 +268,18 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
     
     cam_info = json.load(open(cam_path))
     K = np.array(cam_info['cam_K']).reshape(3, 3)
-
+    depth_K = np.array([[382.277222, 0, 317.354431], [0, 382.277283, 241.377960], [0, 0, 1]])
     whole_image = load_im(rgb_path).astype(np.uint8)
     if len(whole_image.shape)==2:
         whole_image = np.concatenate([whole_image[:,:,None], whole_image[:,:,None], whole_image[:,:,None]], axis=2)
     whole_depth = load_im(depth_path).astype(np.float32) * cam_info['depth_scale'] / 1000.0
     whole_pts = get_point_cloud_from_depth(whole_depth, K)
     
-    mesh = trimesh.load_mesh(cad_path)
-    model_points = mesh.sample(cfg.n_sample_model_point).astype(np.float32) / 1000.0
+    # mesh = trimesh.load_mesh(cad_path)
+    # mesh.sample_surface(seed=1)
+    # model_points = mesh.sample(cfg.n_sample_model_point).astype(np.float32) / 1000.0
+    mesh, _ = trimesh.sample.sample_surface(mesh=trimesh.load_mesh(cad_path), count=cfg.n_sample_model_point, seed=1)
+    model_points = mesh.astype(np.float32) / 1000.0
     radius = np.max(np.linalg.norm(model_points, axis=1))
 
     ply_data = PlyData.read("../Gen6D/data/GenMOP/elbow-ref/object_point_cloud.ply")
@@ -318,7 +322,7 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
         cloud = whole_pts.copy()[y1:y2, x1:x2, :].reshape(-1, 3)[choose, :]
         center = np.mean(cloud, axis=0)
         tmp_cloud = cloud - center[None, :]
-
+        print(radius)
         flag = np.linalg.norm(tmp_cloud, axis=1) < radius * 1.2
         # print(np.linalg.norm(tmp_cloud, axis=1), radius * 2.0)
         if np.sum(flag) < 4:
@@ -380,26 +384,15 @@ def transform_points(pts, pose):
     if len(pts.shape)==1:
         return (R @ pts[:,None] + t[:,None])[:,0]
     return pts @ R.T + t[None,:]
-    # 3x3の回転行列と3x1の平行移動ベクトルに分ける
-    # rotation_matrix = pose_matrix[:, :3]
-    # translation_vector = pose_matrix[:, 3]
-    
-    # # 点群に対して回転と平行移動を適用
-    # transformed_points = np.dot(points, rotation_matrix.T) + translation_vector
-    # return transformed_points
 
 if __name__ == "__main__":
-    img_list = []
-    pred_rot_list = []
-    pred_trans_list = []
-    model_points_list = []
-    K_list = []
-    predictions_list = []
 
     cfg, pipe_list, img_dir, cad_dir, cad_type = init()
     
-    for _ in range(len(pipe_list)):
-        predictions_list.append([])
+    np.random.seed(cfg.rd_seed)
+    random.seed(cfg.rd_seed)
+    torch.manual_seed(cfg.rd_seed)
+    torch.cuda.manual_seed_all(cfg.rd_seed)
 
     print("=> creating model ...")
     MODEL = importlib.import_module(cfg.model_name)
@@ -423,41 +416,58 @@ if __name__ == "__main__":
         gt_K = pickle.load(f)
     add_list = 0
     prj_list = 0
+
+    os.makedirs(f"{cfg.output_dir}/pose/all", exist_ok=True)
+
+    print("=> extracting templates ...")
+    all_tem_pts = []
+    all_tem_feat = []
+    for i, pipe_name in enumerate(pipe_list):
+        tem_path = os.path.join(cfg.output_dir, 'render', pipe_name)
+        all_tem, all_tem_pt, all_tem_choose = get_templates(tem_path, cfg.test_dataset)
+        with torch.no_grad():
+            _all_tem_pts, _all_tem_feat = model.feature_extraction.get_obj_feats(all_tem, all_tem_pt, all_tem_choose)
+            all_tem_pts.append(_all_tem_pts)
+            all_tem_feat.append(_all_tem_feat)
+
     for _img_num, _ in enumerate(tqdm(glob.glob(img_dir + "/rgb/*.png"))):
-        img_num = img_fn_list[_img_num].replace(".jpg", "")
-        img_num = img_num.replace("frame", "")
-        # img_num = str(_img_num*10)
-        # img_num = str("30")
+        # img_num = img_fn_list[_img_num].replace(".jpg", "")
+        # img_num = img_num.replace("frame", "")
+        
+        img_num = str(_img_num * 10)
+        img_list = []
+        pred_rot_list = []
+        pred_trans_list = []
+        model_points_list = []
+        K_list = []
+        predictions_list = []
+        for _ in range(len(pipe_list)):
+            predictions_list.append([])
+        is_empty = False
         for i, pipe_name in enumerate(pipe_list):
-            if i == 1:
-                continue
-            file_path = os.path.join(cfg.output_dir, pipe_name, 'segmentation/', img_num, 'detection_ism.json')
+            file_path = os.path.join(cfg.output_dir, 'segmentation/', pipe_name, img_num, 'detection_ism.json')
             if os.path.exists(file_path) == False:
                 trans = np.zeros((3, 1), dtype=np.float32)
                 rot = np.zeros((3, 3), dtype=np.float32)
                 predictions_list[i].append(np.hstack((rot, trans)))
+                is_empty = True
                 print(f"File not found: {file_path}")
                 continue
 
-            # print("=> extracting templates ...")
-            tem_path = os.path.join(cfg.output_dir, pipe_name+'/render')
-            all_tem, all_tem_pts, all_tem_choose = get_templates(tem_path, cfg.test_dataset)
-            with torch.no_grad():
-                all_tem_pts, all_tem_feat = model.feature_extraction.get_obj_feats(all_tem, all_tem_pts, all_tem_choose)
 
             # print("=> loading input data ...")
             input_data, img, whole_pts, model_points, detections, radius, model_points_gt = get_test_data(
                 os.path.join(img_dir, "rgb", "frame"+img_num+'.png'), os.path.join(img_dir, "depth", "frame"+img_num+'.png'), 
                 cfg.cam_path, os.path.join(cad_dir, pipe_name+'-'+cad_type+'.ply'), 
-                os.path.join(cfg.output_dir, pipe_name, 'segmentation/', img_num, 'detection_ism.json'), 
+                os.path.join(cfg.output_dir, 'segmentation/', pipe_name, img_num, 'detection_ism.json'), 
                 cfg.det_score_thresh, cfg.test_dataset
             )
             ninstance = input_data['pts'].size(0)
             
             # print("=> running model ...")
             with torch.no_grad():
-                input_data['dense_po'] = all_tem_pts.repeat(ninstance,1,1)
-                input_data['dense_fo'] = all_tem_feat.repeat(ninstance,1,1)
+                input_data['dense_po'] = all_tem_pts[i].repeat(ninstance,1,1)
+                input_data['dense_fo'] = all_tem_feat[i].repeat(ninstance,1,1)
                 out = model(input_data)
 
             if 'pred_pose_score' in out.keys():
@@ -469,17 +479,17 @@ if __name__ == "__main__":
             pred_trans = out['pred_t'].detach().cpu().numpy() * 1000
 
             # print("=> saving results ...")
-            os.makedirs(f"{cfg.output_dir}/{pipe_name}/pose/{img_num}", exist_ok=True)
+            os.makedirs(f"{cfg.output_dir}/pose/{pipe_name}/{img_num}", exist_ok=True)
             for idx, det in enumerate(detections):
                 detections[idx]['score'] = float(pose_scores[idx])
                 detections[idx]['R'] = list(pred_rot[idx].tolist())
                 detections[idx]['t'] = list(pred_trans[idx].tolist())
 
-            with open(os.path.join(f"{cfg.output_dir}/{pipe_name}/pose/{img_num}", 'detection_pem.json'), "w") as f:
+            with open(os.path.join(f"{cfg.output_dir}/pose/{pipe_name}/{img_num}", 'detection_pem.json'), "w") as f:
                 json.dump(detections, f)
 
             # print("=> visualizating ...")
-            save_dir = os.path.join(f"{cfg.output_dir}/{pipe_name}/pose")
+            save_dir = os.path.join(f"{cfg.output_dir}/pose/{pipe_name}")
             valid_masks = pose_scores == pose_scores.max()
             K = input_data['K'].detach().cpu().numpy()
             
@@ -531,7 +541,7 @@ if __name__ == "__main__":
             # スケール係数を計算
             # scale_factor = gt_trans_norm / pred_trans_norm
             scale_factor = 0.06
-            print(scale_factor)
+            # print(scale_factor)
 
             # 推論された並進ベクトルにスケール変換を適用
             corrected_pred_trans = pred_trans * scale_factor
@@ -603,14 +613,17 @@ if __name__ == "__main__":
             # plt.show()
                 # print(np.hstack(pred_pose))
             # predictions_list[i].append(pred_pose)
+        if is_empty is not True:
+            visualize_all(img_list[0], pred_rot_list, pred_trans_list, model_points_list, K_list, os.path.join(f"{cfg.output_dir}/pose"), pipe_list, img_num)
             
         # if _img_num ==1:
         #     break
+            
+
     print(add_list/ len(img_fn_list))
     print(prj_list/ len(img_fn_list))
-    for i, pipe_name in enumerate(pipe_list):
-        save_path = os.path.join(f"{cfg.output_dir}", pipe_name, "pose")
-        with open(os.path.join(save_path, "gen6d_pretrain.pkl"), "wb") as f:
-            pickle.dump(predictions_list[i], f)
+    # for i, pipe_name in enumerate(pipe_list):
+    #     save_path = os.path.join(f"{cfg.output_dir}", pipe_name, "pose")
+    #     with open(os.path.join(save_path, "gen6d_pretrain.pkl"), "wb") as f:
+    #         pickle.dump(predictions_list[i], f)
 
-    # visualize_all(img_list[0], pred_rot_list, pred_trans_list, model_points_list, K_list, save_path, object_list)
