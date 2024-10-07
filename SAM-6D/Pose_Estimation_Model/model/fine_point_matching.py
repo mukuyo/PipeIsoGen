@@ -123,4 +123,3 @@ class PositionalEncoding(nn.Module):
         feat = torch.cat([feat1, feat2], dim=1).squeeze(-1)
         feat = self.mlp3(feat).transpose(1,2)
         return feat
-

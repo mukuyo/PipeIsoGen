@@ -213,4 +213,3 @@ def get_bop_image(inst, bbox, img_size, mask=None):
     return rgb
 
 
-

@@ -114,4 +114,3 @@ def load_objs(
         )
         cnt+=1
     return objs, obj_ids
-

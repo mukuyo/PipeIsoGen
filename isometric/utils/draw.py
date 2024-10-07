@@ -117,7 +117,7 @@ class DrawUtils:
     def pipe_direction(self, pipes: list[Pipe], save_dir, img_num: int) -> None:
         self.__image = cv2.imread(os.path.join(self.__args.img_dir, f"rgb/frame{str(img_num)}.png"))
         
-        for pipe in pipes:
+        for j, pipe in enumerate(pipes):
             for i, vector in enumerate(pipe.vectors):
                 if i == 0:
                     color = (255, 0, 0)  # Green color
@@ -145,7 +145,11 @@ class DrawUtils:
                 
                 # Convert to image coordinates
                 start_point = (int(start_point_2d[0]), int(start_point_2d[1]))
+                
                 end_point = (int(end_point_2d[0]), int(end_point_2d[1]))
+                if j == 0:
+                    start_point = (int(start_point_2d[0]), int(start_point_2d[1]-10))
+                    end_point = (int(end_point_2d[0]), int(end_point_2d[1]-10))
 
                 # Draw the center of the object for debugging (red dot)
                 cv2.circle(self.__image, start_point, 2, color, -1)  # Red dot
@@ -158,11 +162,11 @@ class DrawUtils:
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 font_scale = 0.5
 
-                color = (255, 0, 0)
+                color = (255, 255, 255)
                 thickness = 2
                 text_size, _ = cv2.getTextSize(pipe_number_text, font, font_scale, thickness)
-                text_x = start_point[0] - text_size[0] // 2
-                text_y = start_point[1] - text_size[1] // 2
+                text_x = start_point[0] - text_size[0] // 2 + 8
+                text_y = start_point[1] - text_size[1] // 2 - 5
                 cv2.putText(self.__image, pipe_number_text, (text_x, text_y), font, font_scale, color, thickness)
 
         # Save the image

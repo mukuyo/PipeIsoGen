@@ -181,4 +181,3 @@ class ViTEncoder(nn.Module):
         return sample_pts_feats(tem_pts, tem_feat, npoint)
 
 
-

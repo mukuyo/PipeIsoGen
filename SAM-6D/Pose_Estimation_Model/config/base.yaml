@@ -14,7 +14,7 @@ lr_scheduler:
   warmup_iters: 1000
 
 model:
-  coarse_npoint: 196
+  coarse_npoint: 100
   fine_npoint: 2048
   feature_extraction:
     vit_type: vit_base
@@ -69,8 +69,8 @@ train_dataset:
   dilate_mask: True
 
 train_dataloader:
-  bs            : 1
-  num_workers   : 1
+  bs            : 28
+  num_workers   : 24
   shuffle       : True
   drop_last     : True
   pin_memory    : False
@@ -83,22 +83,22 @@ test_dataset:
   template_dir: ../Data/BOP-Templates
   img_size: 224
   n_sample_observed_point: 2048
-  n_sample_model_point: 2048
-  n_sample_template_point: 1000
+  n_sample_model_point: 1024
+  n_sample_template_point: 5000
   minimum_n_point: 8
   rgb_mask_flag: True
-  seg_filter_score: 0.05
+  seg_filter_score: 0.25
   n_template_view: 42
 
 
 test_dataloader:
-  bs            : 1
-  num_workers   : 1
+  bs            : 16
+  num_workers   : 16
   shuffle       : False
   drop_last     : False
   pin_memory    : False
 
 
-rd_seed: 2
+rd_seed: 1
 training_epoch: 15
 iters_to_print: 50

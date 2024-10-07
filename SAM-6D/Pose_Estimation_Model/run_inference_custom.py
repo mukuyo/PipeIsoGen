@@ -17,6 +17,7 @@ import cv2
 import pickle
 import math
 from plyfile import PlyData, PlyElement
+import open3d as o3d
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.join(BASE_DIR, '..', 'Pose_Estimation_Model')
@@ -62,7 +63,7 @@ def get_parser():
     parser.add_argument("--img_dir", nargs="?", help="Path to image")
     parser.add_argument("--cam_path", nargs="?", help="Path to camera information")
     parser.add_argument("--pipe_list", default="", help="The list of pipe names")
-    parser.add_argument("--det_score_thresh", default=0.35, help="The score threshold of detection")
+    parser.add_argument("--det_score_thresh", default=0.2, help="The score threshold of detection")
     
     args_cfg = parser.parse_args()
 
@@ -142,7 +143,6 @@ def _get_template(path, cfg, tem_index=1):
     xyz = xyz[y1:y2, x1:x2, :].reshape((-1, 3))[choose, :]
 
     rgb_choose = get_resize_rgb_choose(choose, [y1, y2, x1, x2], cfg.img_size)
-
     return rgb, rgb_choose, xyz
 
 def project_points(points, intrinsics, pose):
@@ -257,7 +257,7 @@ def adjust_rotation_matrix(R):
     return new_R
 
 
-def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_thresh, cfg):
+def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_thresh, cfg, img_num):
     dets = []
     with open(seg_path) as f:
         dets_ = json.load(f) # keys: scene_id, image_id, category_id, bbox, score, segmentation
@@ -268,20 +268,24 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
     
     cam_info = json.load(open(cam_path))
     K = np.array(cam_info['cam_K']).reshape(3, 3)
-    depth_K = np.array([[382.277222, 0, 317.354431], [0, 382.277283, 241.377960], [0, 0, 1]])
+    
     whole_image = load_im(rgb_path).astype(np.uint8)
     if len(whole_image.shape)==2:
         whole_image = np.concatenate([whole_image[:,:,None], whole_image[:,:,None], whole_image[:,:,None]], axis=2)
     whole_depth = load_im(depth_path).astype(np.float32) * cam_info['depth_scale'] / 1000.0
     whole_pts = get_point_cloud_from_depth(whole_depth, K)
-    
-    # mesh = trimesh.load_mesh(cad_path)
-    # mesh.sample_surface(seed=1)
-    # model_points = mesh.sample(cfg.n_sample_model_point).astype(np.float32) / 1000.0
+
     mesh, _ = trimesh.sample.sample_surface(mesh=trimesh.load_mesh(cad_path), count=cfg.n_sample_model_point, seed=1)
     model_points = mesh.astype(np.float32) / 1000.0
     radius = np.max(np.linalg.norm(model_points, axis=1))
+    # point_cloud = o3d.geometry.PointCloud()
+    # point_cloud.points = o3d.utility.Vector3dVector(model_points)
+    
+    # # 点群を表示
+    # o3d.visualization.draw_geometries([point_cloud])
 
+    
+    plt.show()
     ply_data = PlyData.read("../Gen6D/data/GenMOP/elbow-ref/object_point_cloud.ply")
 
     # 点群データを取得する
@@ -345,21 +349,23 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
         # display_rgb_image_cv(rgb)
         rgb = rgb_transform(np.array(rgb))
         rgb_choose = get_resize_rgb_choose(choose, [y1, y2, x1, x2], cfg.img_size)
-        # # 例として画像を読み込む (パスを指定してください)
-        # img = Image.open(rgb_path) 
 
-        # # bbox の範囲で画像をクロップ
-        # y1, y2, x1, x2 = bbox
-        # cropped_img = img.crop((x1, y1, x2, y2))
+        # if img_num == "120":
+        #     # # 例として画像を読み込む (パスを指定してください)
+        #     img = Image.open(rgb_path) 
 
-        # # 画像サイズをリサイズ
-        # img_size = 256  # 例えば、256x256 にリサイズ
-        # resized_img = cropped_img.resize((img_size, img_size))
+        #     # bbox の範囲で画像をクロップ
+        #     y1, y2, x1, x2 = bbox
+        #     cropped_img = img.crop((x1, y1, x2, y2))
 
-        # # 画像を表示
-        # plt.imshow(resized_img)
-        # plt.axis('off')  # 軸を非表示
-        # plt.show()
+        #     # 画像サイズをリサイズ
+        #     img_size = 256  # 例えば、256x256 にリサイズ
+        #     resized_img = cropped_img.resize((img_size, img_size))
+
+        #     # 画像を表示
+        #     plt.imshow(resized_img)
+        #     plt.axis('off')  # 軸を非表示
+        #     plt.show()
 
         all_rgb.append(torch.FloatTensor(rgb))
         all_cloud.append(torch.FloatTensor(cloud))
@@ -431,8 +437,8 @@ if __name__ == "__main__":
             all_tem_feat.append(_all_tem_feat)
 
     for _img_num, _ in enumerate(tqdm(glob.glob(img_dir + "/rgb/*.png"))):
-        # img_num = img_fn_list[_img_num].replace(".jpg", "")
-        # img_num = img_num.replace("frame", "")
+        img_num_r = img_fn_list[_img_num].replace(".jpg", "")
+        img_num_r = img_num_r.replace("frame", "")
         
         img_num = str(_img_num * 10)
         img_list = []
@@ -460,7 +466,7 @@ if __name__ == "__main__":
                 os.path.join(img_dir, "rgb", "frame"+img_num+'.png'), os.path.join(img_dir, "depth", "frame"+img_num+'.png'), 
                 cfg.cam_path, os.path.join(cad_dir, pipe_name+'-'+cad_type+'.ply'), 
                 os.path.join(cfg.output_dir, 'segmentation/', pipe_name, img_num, 'detection_ism.json'), 
-                cfg.det_score_thresh, cfg.test_dataset
+                cfg.det_score_thresh, cfg.test_dataset, img_num
             )
             ninstance = input_data['pts'].size(0)
             

@@ -673,4 +673,3 @@ class SparseToDenseTransformer(nn.Module):
         return dense_feats
 
 
-
