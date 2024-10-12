@@ -238,6 +238,9 @@ def draw_detections(image, pred_rots, pred_trans, model_points, intrinsics, gt_i
         #                                 [   -0.55432,     0.16901,     -1.4227],
         #                                 [    0.58109,     0.16901,     -1.4227],
         #                                 [    0.58109,    -0.80312,     -1.4227]])
+        # gt_intrinsics = np.array([[619.09, 0, 320],
+        #            [0, 619.09, 240],
+        #            [0, 0, 1]])
         projected_bbox, _ = project_points(transformed_bbox_3d, pose_gt, gt_intrinsics)
         draw_image_bbox = draw_bbox_3d(draw_image_bbox, projected_bbox, color)
 

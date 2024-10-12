@@ -189,7 +189,7 @@ def run_inference(segmentor_model, output_dir, cad_dir, cad_type, img_dir, cam_p
     
     save_path = os.path.join(output_dir, "segmentation", "all")
     os.makedirs(save_path, exist_ok=True)
-
+    
     for _img_num, _ in enumerate(tqdm(glob.glob(img_dir + "/rgb/*.png"))):
         # run inference
         img_num = str(_img_num*10)

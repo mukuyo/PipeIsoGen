@@ -14,7 +14,7 @@ lr_scheduler:
   warmup_iters: 1000
 
 model:
-  coarse_npoint: 100
+  coarse_npoint: 192
   fine_npoint: 2048
   feature_extraction:
     vit_type: vit_base
@@ -69,8 +69,8 @@ train_dataset:
   dilate_mask: True
 
 train_dataloader:
-  bs            : 28
-  num_workers   : 24
+  bs            : 1
+  num_workers   : 1
   shuffle       : True
   drop_last     : True
   pin_memory    : False
@@ -92,8 +92,8 @@ test_dataset:
 
 
 test_dataloader:
-  bs            : 16
-  num_workers   : 16
+  bs            : 1
+  num_workers   : 1
   shuffle       : False
   drop_last     : False
   pin_memory    : False

@@ -257,7 +257,7 @@ def adjust_rotation_matrix(R):
     return new_R
 
 
-def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_thresh, cfg, img_num):
+def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_thresh, cfg, model_points):
     dets = []
     with open(seg_path) as f:
         dets_ = json.load(f) # keys: scene_id, image_id, category_id, bbox, score, segmentation
@@ -274,9 +274,7 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
         whole_image = np.concatenate([whole_image[:,:,None], whole_image[:,:,None], whole_image[:,:,None]], axis=2)
     whole_depth = load_im(depth_path).astype(np.float32) * cam_info['depth_scale'] / 1000.0
     whole_pts = get_point_cloud_from_depth(whole_depth, K)
-
-    mesh, _ = trimesh.sample.sample_surface(mesh=trimesh.load_mesh(cad_path), count=cfg.n_sample_model_point, seed=1)
-    model_points = mesh.astype(np.float32) / 1000.0
+    
     radius = np.max(np.linalg.norm(model_points, axis=1))
     # point_cloud = o3d.geometry.PointCloud()
     # point_cloud.points = o3d.utility.Vector3dVector(model_points)
@@ -412,10 +410,6 @@ if __name__ == "__main__":
     file_path = '../Gen6D/data/GenMOP/elbow-test/images_fn_cache.pkl'
     with open(file_path, 'rb') as f:
         img_fn_list = pickle.load(f)
-    
-    file_path = 'gen6d_pretrain.pkl'
-    with open(file_path, 'rb') as f:
-        pose_gt_list = pickle.load(f)
 
     file_path = 'queK.pkl'
     with open(file_path, 'rb') as f:
@@ -428,6 +422,8 @@ if __name__ == "__main__":
     print("=> extracting templates ...")
     all_tem_pts = []
     all_tem_feat = []
+    pose_gt_list = []
+    model_point_list = []
     for i, pipe_name in enumerate(pipe_list):
         tem_path = os.path.join(cfg.output_dir, 'render', pipe_name)
         all_tem, all_tem_pt, all_tem_choose = get_templates(tem_path, cfg.test_dataset)
@@ -435,6 +431,12 @@ if __name__ == "__main__":
             _all_tem_pts, _all_tem_feat = model.feature_extraction.get_obj_feats(all_tem, all_tem_pt, all_tem_choose)
             all_tem_pts.append(_all_tem_pts)
             all_tem_feat.append(_all_tem_feat)
+            mesh, _ = trimesh.sample.sample_surface(mesh=trimesh.load_mesh(os.path.join(cad_dir, pipe_name+'-'+cad_type+'.ply')), count=cfg.test_dataset.n_sample_model_point, seed=120)
+            model_point_list.append(mesh.astype(np.float32) / 1000.0)
+
+            file_path = f'./data/ground_truth/{pipe_name}.pkl'
+            with open(file_path, 'rb') as f:
+                pose_gt_list.append(pickle.load(f))
 
     for _img_num, _ in enumerate(tqdm(glob.glob(img_dir + "/rgb/*.png"))):
         img_num_r = img_fn_list[_img_num].replace(".jpg", "")
@@ -466,7 +468,7 @@ if __name__ == "__main__":
                 os.path.join(img_dir, "rgb", "frame"+img_num+'.png'), os.path.join(img_dir, "depth", "frame"+img_num+'.png'), 
                 cfg.cam_path, os.path.join(cad_dir, pipe_name+'-'+cad_type+'.ply'), 
                 os.path.join(cfg.output_dir, 'segmentation/', pipe_name, img_num, 'detection_ism.json'), 
-                cfg.det_score_thresh, cfg.test_dataset, img_num
+                cfg.det_score_thresh, cfg.test_dataset, model_point_list[i]
             )
             ninstance = input_data['pts'].size(0)
             
@@ -499,7 +501,9 @@ if __name__ == "__main__":
             valid_masks = pose_scores == pose_scores.max()
             K = input_data['K'].detach().cpu().numpy()
             
-            pose_gt = pose_gt_list[_img_num]
+            pose_gt = pose_gt_list[i][_img_num]
+
+            print(pose_gt, pred_rot, pred_trans)
             # pose_gt[:, 3] = np.dot(np.linalg.inv(K), np.dot(gt_K[int(int(img_num)/10)], pose_gt[:, 3]))
             # pose_gt[:, 3] *= 15.108460593
 

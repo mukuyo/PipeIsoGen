@@ -171,7 +171,7 @@ class DrawUtils:
 
         # Save the image
         save_path = os.path.join(save_dir, "pipe_direction.png")
-        cv2.imwrite(save_path, self.__image)
+        # cv2.imwrite(save_path, self.__image)
 
     def save_dxf(self, img_num) -> None:
         self.__doc.saveas(os.path.join(self.__args.output_dir, "isometric", str(img_num), "pipe.dxf"))

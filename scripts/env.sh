@@ -1,10 +1,10 @@
 # env.sh
 
-export IMAGE=sim
+export IMAGE=real
 export RUN_MODE=eval
 export PIPE_MODEL=test
 export PIPE_LIST="elbow","tee"
-export CAD_TYPE="center"
+export CAD_TYPE="center-big"
 
 export CAD_DIR=data/cad_model
 export IMG_DIR=data/$IMAGE/images/$PIPE_MODEL

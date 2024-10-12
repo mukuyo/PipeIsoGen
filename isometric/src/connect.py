@@ -13,7 +13,7 @@ class Connect:
     def __init__(self, args, logger) -> None:
         self.__args = args
         self.__logger = logger
-        self.__angle_threshold = 20.0  # Angle threshold in degrees for determining if pipes are facing each other
+        self.__angle_threshold = 25.0  # Angle threshold in degrees for determining if pipes are facing each other
 
         with open(self.__args.cam_path, 'r') as f:
             cam_params = json.load(f)        

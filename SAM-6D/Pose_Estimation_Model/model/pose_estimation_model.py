@@ -44,10 +44,10 @@ class Net(nn.Module):
         )
 
         # fine_point_matching
-        # end_points = self.fine_point_matching(
-        #     dense_pm, dense_fm, geo_embedding_m, fps_idx_m,
-        #     dense_po, dense_fo, geo_embedding_o, fps_idx_o,
-        #     radius, end_points
-        # )
+        end_points = self.fine_point_matching(
+            dense_pm, dense_fm, geo_embedding_m, fps_idx_m,
+            dense_po, dense_fo, geo_embedding_o, fps_idx_o,
+            radius, end_points
+        )
 
         return end_points
