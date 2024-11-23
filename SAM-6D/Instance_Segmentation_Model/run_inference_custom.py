@@ -190,6 +190,7 @@ def run_inference(segmentor_model, output_dir, cad_dir, cad_type, img_dir, cam_p
     save_path = os.path.join(output_dir, "segmentation", "all")
     os.makedirs(save_path, exist_ok=True)
     
+    print(img_dir)
     for _img_num, _ in enumerate(tqdm(glob.glob(img_dir + "/rgb/*.png"))):
         # run inference
         img_num = str(_img_num*10)
@@ -228,7 +229,10 @@ def run_inference(segmentor_model, output_dir, cad_dir, cad_type, img_dir, cam_p
             poses = torch.tensor(template_poses).to(torch.float32).to(device)
             model[i].ref_data["poses"] =  poses[load_index_level_in_level2(0, "all"), :, :]
 
-            mesh = trimesh.load_mesh(os.path.join(cad_dir, pipe_name+'-'+cad_type+'.ply'))
+            if cad_type == 'None':
+                mesh = trimesh.load_mesh(os.path.join(cad_dir, pipe_name+'.ply'))
+            else:
+                mesh = trimesh.load_mesh(os.path.join(cad_dir, pipe_name+'-'+cad_type+'.ply'))
             model_points = mesh.sample(2048).astype(np.float32) / 1000.0
             model[i].ref_data["pointcloud"] = torch.tensor(model_points).unsqueeze(0).data.to(device)
             image_uv = model[i].project_template_to_image(best_template, pred_idx_objects, batch, detections.masks)

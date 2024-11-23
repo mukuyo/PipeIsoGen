@@ -99,6 +99,6 @@ test_dataloader:
   pin_memory    : False
 
 
-rd_seed: 1
+rd_seed: 5
 training_epoch: 15
 iters_to_print: 50

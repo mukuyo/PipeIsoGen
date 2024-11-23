@@ -44,7 +44,10 @@ for obj_name in pipe_list:
     cam_poses = np.load(cnos_cam_fpath)
 
     # calculating the scale of CAD model
-    cad_path = os.path.join(args.cad_dir, obj_name+'-'+args.cad_type+'.ply')
+    if args.cad_type == 'None':
+        cad_path = os.path.join(args.cad_dir, obj_name+'.ply')
+    else:
+        cad_path = os.path.join(args.cad_dir, obj_name+'-'+args.cad_type+'.ply')
     if args.normalize:
         scale = get_norm_info(cad_path)
     else:

@@ -14,8 +14,7 @@ import matplotlib.pyplot as plt
 import torch
 import torchvision.transforms as transforms
 import cv2
-import pickle
-import math
+from math import sin, cos, degrees, radians
 from plyfile import PlyData, PlyElement
 import open3d as o3d
 
@@ -63,7 +62,7 @@ def get_parser():
     parser.add_argument("--img_dir", nargs="?", help="Path to image")
     parser.add_argument("--cam_path", nargs="?", help="Path to camera information")
     parser.add_argument("--pipe_list", default="", help="The list of pipe names")
-    parser.add_argument("--det_score_thresh", default=0.2, help="The score threshold of detection")
+    parser.add_argument("--det_score_thresh", default=0.15, help="The score threshold of detection")
     
     args_cfg = parser.parse_args()
 
@@ -104,15 +103,17 @@ rgb_transform = transforms.Compose([transforms.ToTensor(),
                                 transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                                     std=[0.229, 0.224, 0.225])])
 
-def visualize(rgb, pred_rot, pred_trans, model_points, K, gt_K, save_dir, id, gt_rots, gt_trans, pose_gt, model_points_gt):
-    img = draw_detections(rgb, pred_rot, pred_trans, model_points, K, gt_K, gt_rots, gt_trans, pose_gt, model_points_gt, color=(255, 0, 0), save_dir=save_dir)
+def visualize(rgb, pred_rot, pred_trans, model_points, K, save_dir, id, gt_poses):
+    img = draw_detections(rgb, pred_rot, pred_trans, model_points, K, gt_poses, color=(255, 0, 0), save_dir=save_dir)
     img = Image.fromarray(np.uint8(img))
     img.save(save_dir + f'/{id}/{id}.png')
 
-def visualize_all(rgb, pred_rot_list, pred_trans_list, model_points_list, K_list, save_dir, object_list, img_num):
-    img = draw_detections_all(rgb, pred_rot_list, pred_trans_list, model_points_list, K_list, save_dir, object_list, img_num)
-    img = Image.fromarray(np.uint8(img))
-    img.save(os.path.join(save_dir, f'all/vis_pem_all_{img_num}.png'))
+def visualize_all(rgb, pred_rot_list, pred_trans_list, model_points_list, K_list, save_dir, object_list, img_num, gt_pose_list):
+    pcl_img, gt_img = draw_detections_all(rgb, pred_rot_list, pred_trans_list, model_points_list, K_list, save_dir, object_list, img_num, gt_pose_list)
+    pcl_img = Image.fromarray(np.uint8(pcl_img))
+    gt_img = Image.fromarray(np.uint8(gt_img))
+    pcl_img.save(os.path.join(save_dir, f'all/vis_pcl_all_{img_num}.png'))
+    gt_img.save(os.path.join(save_dir, f'all/vis_gt_all_{img_num}.png'))
 
 def _get_template(path, cfg, tem_index=1):
     rgb_path = os.path.join(path, 'rgb_'+str(tem_index)+'.png')
@@ -145,25 +146,6 @@ def _get_template(path, cfg, tem_index=1):
     rgb_choose = get_resize_rgb_choose(choose, [y1, y2, x1, x2], cfg.img_size)
     return rgb, rgb_choose, xyz
 
-def project_points(points, intrinsics, pose):
-    """
-    3Dポイントをカメラの内因性行列と外因性行列を使って2Dに投影します。
-    """
-    # 3Dポイントをホモジニアス座標に変換
-    points_homogeneous = np.hstack((points, np.ones((points.shape[0], 1))))
-    
-    # ポーズを適用
-    projected_points_homogeneous = (pose @ points_homogeneous.T).T
-    
-    # カメラ内因性行列を適用
-    projected_points = (intrinsics @ projected_points_homogeneous.T).T
-    
-    # 正規化
-    projected_points = projected_points[:, :2] / projected_points[:, 2:3]  # [:, 2:3] でスカラーとして扱う
-    
-    return projected_points
-
-
 def prj_points(pts,RT,K):
     pts = np.matmul(pts,RT[:,:3].transpose())+RT[:,3:].transpose()
     pts = np.matmul(pts,K.transpose())
@@ -174,14 +156,6 @@ def prj_points(pts,RT,K):
     if np.sum(mask1)>0: dpt[mask1]=-1e-4
     pts2d = pts[:,:2]/dpt[:,None]
     return pts2d, dpt
-
-def round_coordinates(coord,h,w):
-    coord=np.round(coord).astype(np.int32)
-    coord[coord[:,0]<0,0]=0
-    coord[coord[:,0]>=w,0]=w-1
-    coord[coord[:,1]<0,1]=0
-    coord[coord[:,1]>=h,1]=h-1
-    return coord
 
 def get_templates(path, cfg):
     n_template_view = cfg.n_template_view
@@ -197,65 +171,6 @@ def get_templates(path, cfg):
         all_tem_choose.append(torch.IntTensor(tem_choose).long().unsqueeze(0).cuda())
         all_tem_pts.append(torch.FloatTensor(tem_pts).unsqueeze(0).cuda())
     return all_tem, all_tem_pts, all_tem_choose
-
-def rotation_matrix_to_euler_angles(R):
-    assert R.shape == (3, 3), "回転行列は3x3のサイズでなければなりません"
-    
-    # ピッチを計算
-    pitch = math.atan2(-R[2, 0], np.sqrt(R[0, 0]**2 + R[1, 0]**2))
-    
-    # ロールを計算
-    roll = math.atan2(R[2, 1] / np.cos(pitch), R[2, 2] / np.cos(pitch))
-    
-    # ヨーを計算
-    yaw = math.atan2(R[1, 0] / np.cos(pitch), R[0, 0] / np.cos(pitch))
-    
-    return roll, pitch, yaw
-
-def euler_angles_to_rotation_matrix(roll, pitch, yaw):
-    # 回転行列を計算（Z-Y-X順序）
-    R_z = np.array([
-        [math.cos(yaw), -math.sin(yaw), 0],
-        [math.sin(yaw), math.cos(yaw), 0],
-        [0, 0, 1]
-    ])
-    
-    R_y = np.array([
-        [math.cos(pitch), 0, math.sin(pitch)],
-        [0, 1, 0],
-        [-math.sin(pitch), 0, math.cos(pitch)]
-    ])
-    
-    R_x = np.array([
-        [1, 0, 0],
-        [0, math.cos(roll), -math.sin(roll)],
-        [0, math.sin(roll), math.cos(roll)]
-    ])
-    
-    R = R_z @ R_y @ R_x
-    return R
-
-def adjust_rotation_matrix(R):
-    roll, pitch, yaw = rotation_matrix_to_euler_angles(R)
-
-    print(f"Roll (radians): {roll}, (degrees): {math.degrees(roll)}")
-    print(f"Pitch (radians): {pitch}, (degrees): {math.degrees(pitch)}")
-    print(f"Yaw (radians): {yaw}, (degrees): {math.degrees(yaw)}")
-
-    # # ピッチとヨーがともにマイナスの場合、180度（πラジアン）を加算
-    if pitch < 0 and yaw < 0:
-        pitch = -pitch
-        yaw += math.pi
-
-    print(f"Roll (radians): {roll}, (degrees): {math.degrees(roll)}")
-    print(f"Pitch (radians): {pitch}, (degrees): {math.degrees(pitch)}")
-    print(f"Yaw (radians): {yaw}, (degrees): {math.degrees(yaw)}")
-
-    # 新しい回転行列を計算
-    new_R = euler_angles_to_rotation_matrix(roll, pitch, yaw)
-    
-    return new_R
-
 
 def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_thresh, cfg, model_points):
     dets = []
@@ -283,12 +198,12 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
     # o3d.visualization.draw_geometries([point_cloud])
 
     
-    plt.show()
-    ply_data = PlyData.read("../Gen6D/data/GenMOP/elbow-ref/object_point_cloud.ply")
+    # plt.show()
+    # ply_data = PlyData.read("../Gen6D/data/GenMOP/elbow-ref/object_point_cloud.ply")
 
-    # 点群データを取得する
-    vertex_data = ply_data['vertex']
-    model_points_gt = np.vstack((vertex_data['x'], vertex_data['y'], vertex_data['z'])).T
+    # # 点群データを取得する
+    # vertex_data = ply_data['vertex']
+    # model_points_gt = np.vstack((vertex_data['x'], vertex_data['y'], vertex_data['z'])).T
 
     # model_points_gt = mesh.sample(cfg.n_sample_model_point).astype(np.float32) / 1000.0
     # radius = np.max(np.linalg.norm(model_points, axis=1))
@@ -324,8 +239,8 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
         cloud = whole_pts.copy()[y1:y2, x1:x2, :].reshape(-1, 3)[choose, :]
         center = np.mean(cloud, axis=0)
         tmp_cloud = cloud - center[None, :]
-        print(radius)
-        flag = np.linalg.norm(tmp_cloud, axis=1) < radius * 1.2
+
+        flag = np.linalg.norm(tmp_cloud, axis=1) < radius * 1.7
         # print(np.linalg.norm(tmp_cloud, axis=1), radius * 2.0)
         if np.sum(flag) < 4:
             continue
@@ -380,7 +295,7 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
     ninstance = ret_dict['pts'].size(0)
     ret_dict['model'] = torch.FloatTensor(model_points).unsqueeze(0).repeat(ninstance, 1, 1).cuda()
     ret_dict['K'] = torch.FloatTensor(K).unsqueeze(0).repeat(ninstance, 1, 1).cuda()
-    return ret_dict, whole_image, whole_pts.reshape(-1, 3), model_points, all_dets, radius, model_points_gt
+    return ret_dict, whole_image, whole_pts.reshape(-1, 3), model_points, all_dets, radius
 
 def transform_points(pts, pose):
     """点群に姿勢行列を適用"""
@@ -407,23 +322,16 @@ if __name__ == "__main__":
     
     gorilla.solver.load_checkpoint(model=model, filename=checkpoint)
 
-    file_path = '../Gen6D/data/GenMOP/elbow-test/images_fn_cache.pkl'
-    with open(file_path, 'rb') as f:
-        img_fn_list = pickle.load(f)
-
-    file_path = 'queK.pkl'
-    with open(file_path, 'rb') as f:
-        gt_K = pickle.load(f)
-    add_list = 0
-    prj_list = 0
-
     os.makedirs(f"{cfg.output_dir}/pose/all", exist_ok=True)
 
     print("=> extracting templates ...")
     all_tem_pts = []
     all_tem_feat = []
-    pose_gt_list = []
+    gt_pose_list = []
     model_point_list = []
+    for i, pipe_name in enumerate(pipe_list):
+        gt_pose_list.append([])
+
     for i, pipe_name in enumerate(pipe_list):
         tem_path = os.path.join(cfg.output_dir, 'render', pipe_name)
         all_tem, all_tem_pt, all_tem_choose = get_templates(tem_path, cfg.test_dataset)
@@ -431,17 +339,39 @@ if __name__ == "__main__":
             _all_tem_pts, _all_tem_feat = model.feature_extraction.get_obj_feats(all_tem, all_tem_pt, all_tem_choose)
             all_tem_pts.append(_all_tem_pts)
             all_tem_feat.append(_all_tem_feat)
-            mesh, _ = trimesh.sample.sample_surface(mesh=trimesh.load_mesh(os.path.join(cad_dir, pipe_name+'-'+cad_type+'.ply')), count=cfg.test_dataset.n_sample_model_point, seed=120)
+            if cad_type == 'None':
+                mesh, _ = trimesh.sample.sample_surface(mesh=trimesh.load_mesh(os.path.join(cad_dir, pipe_name+'.ply')), count=cfg.test_dataset.n_sample_model_point, seed=120)
+            else:
+                mesh, _ = trimesh.sample.sample_surface(mesh=trimesh.load_mesh(os.path.join(cad_dir, pipe_name+'-'+cad_type+'.ply')), count=cfg.test_dataset.n_sample_model_point, seed=120)
             model_point_list.append(mesh.astype(np.float32) / 1000.0)
 
-            file_path = f'./data/ground_truth/{pipe_name}.pkl'
-            with open(file_path, 'rb') as f:
-                pose_gt_list.append(pickle.load(f))
+            file_path = f'./data/outputs/pose/{pipe_name}/gt_poses.json'
+            gt_poses = []
+            # with open(file_path, 'rb') as f:
+            #     pose = json.load(f)
+            #     for data in pose['poses']:
+            #         pose = np.array([                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+            #             [data['rotation']['row0']['x'], data['rotation']['row0']['y'], data['rotation']['row0']['z'], data['translation']['x'], data['rotationAsEuler']['x']],
+            #             [data['rotation']['row1']['x'], data['rotation']['row1']['y'], data['rotation']['row1']['z'], data['translation']['y'], data['rotationAsEuler']['y']],
+            #             [data['rotation']['row2']['x'], data['rotation']['row2']['y'], data['rotation']['row2']['z'], data['translation']['z'], data['rotationAsEuler']['z']]
+            #         ])
+            #         gt_poses.append(pose)
+            temp = [13, 11]
+            for l in range(temp[i]):
+                file_path = f'./data/outputs/pose/{pipe_name}/{0}/gt_pose_data{l}.npz'
+                data = np.load(file_path)
+                # gt_poses[l][:, :3] = data['rotation']
+                # gt_poses[l][:, 3] = data['translations']
+                # gt_poses[l][:, 4] = data['euler_angles']
+                pose = np.array([
+                    [data['rotation'][0, 0], data['rotation'][0, 1], data['rotation'][0, 2], data['translations'][0]],
+                    [data['rotation'][1, 0], data['rotation'][1, 1], data['rotation'][1, 2], data['translations'][1]],
+                    [data['rotation'][2, 0], data['rotation'][2, 1], data['rotation'][2, 2], data['translations'][2]]
+                ])
+                gt_poses.append(pose)
+        gt_pose_list[i] = gt_poses
 
     for _img_num, _ in enumerate(tqdm(glob.glob(img_dir + "/rgb/*.png"))):
-        img_num_r = img_fn_list[_img_num].replace(".jpg", "")
-        img_num_r = img_num_r.replace("frame", "")
-        
         img_num = str(_img_num * 10)
         img_list = []
         pred_rot_list = []
@@ -464,7 +394,7 @@ if __name__ == "__main__":
 
 
             # print("=> loading input data ...")
-            input_data, img, whole_pts, model_points, detections, radius, model_points_gt = get_test_data(
+            input_data, img, whole_pts, model_points, detections, radius= get_test_data(
                 os.path.join(img_dir, "rgb", "frame"+img_num+'.png'), os.path.join(img_dir, "depth", "frame"+img_num+'.png'), 
                 cfg.cam_path, os.path.join(cad_dir, pipe_name+'-'+cad_type+'.ply'), 
                 os.path.join(cfg.output_dir, 'segmentation/', pipe_name, img_num, 'detection_ism.json'), 
@@ -501,139 +431,111 @@ if __name__ == "__main__":
             valid_masks = pose_scores == pose_scores.max()
             K = input_data['K'].detach().cpu().numpy()
             
-            pose_gt = pose_gt_list[i][_img_num]
+            gt_rot = []
+            gt_trans = []
+            gt_pose_data = []
+            gt_poses = gt_pose_list[i]
 
-            print(pose_gt, pred_rot, pred_trans)
-            # pose_gt[:, 3] = np.dot(np.linalg.inv(K), np.dot(gt_K[int(int(img_num)/10)], pose_gt[:, 3]))
-            # pose_gt[:, 3] *= 15.108460593
+            for j, pose in enumerate(gt_poses):
+                # pose[:, 3] = pred_trans[j]
+                gt_rot.append(pose[:, :3])
+                gt_trans.append(pose[:, 3])     
 
-            # print(pose_gt[:, 3], pred_trans)
-            # print(pred_trans)
-            # pose_gt[:, 3] = pred_trans
-            gt_rots = pose_gt[:, :3]
-            gt_trans = pose_gt[:, 3]
-
-
-            R_yaw = np.array([
-                [0, 1, 0],
-                [-1,  0, 0],
-                [0,  0, 1]
-            ])
-            gt_rots = gt_rots @ R_yaw.T
-
-            # print(pred_rot[0], gt_rots, pred_trans, gt_trans)
-            # print(int(int(img_num)/10))
-            # print(gt_K[_img_num])
-            visualize(img, pred_rot, pred_trans, model_points*1000, K, gt_K[_img_num], save_dir, img_num, gt_rots, gt_trans, pose_gt, model_points_gt)
+            # save_list = [0]
+            # if i == 1:
+            # for l in range(len(gt_poses)):
+                # if l in save_list:
+                
 
             img_list.append(img)
             pred_rot_list.append(pred_rot)
             pred_trans_list.append(pred_trans)
             model_points_list.append(model_points*1000)
             K_list.append(K)
-            
-            pred_trans = pred_trans[0, :].reshape(-1, 1)  # 形状 (3, 1) に変換
-            # pred_trans = pred_trans/15.108460593
 
-            
-            # pred_rot[0][:, [1, 2]] = pred_rot[0][:, [2, 1]]
-            # pred_rot[:, 0] = -pred_rot[:, 0]
+            add_correct_num = 0
+            prj_correct_num = 0
+            for j in range(len(gt_poses)):
+                min_add = float('inf')
+                for k in range(1):
+                    temp_gt_poses = gt_poses[j].copy()
+                    temp_gt_rots = gt_rot[j].copy()
 
+                    if k == 1:
+                        temp_gt_rots[:, 0] = -temp_gt_rots[:, 0]
+                        temp_gt_rots[:, 2] = -temp_gt_rots[:, 2]
+                    elif k == 2:
+                        temp_gt_rots[:, 0] = -temp_gt_rots[:, 0]
+                        temp_gt_rots[:, 1] = -temp_gt_rots[:, 1]
+                    elif k == 3:
+                        temp_gt_rots[:, 1] = -temp_gt_rots[:, 1]
+                        temp_gt_rots[:, 2] = -temp_gt_rots[:, 2]
+                    elif k == 4:
+                        temp_gt_rots = temp_gt_rots[:, [1, 2, 0]]
+                        temp_gt_rots[1, 0] = -temp_gt_rots[1, 0]
+                        temp_gt_rots[2, 0] = -temp_gt_rots[2, 0]
+                    elif k == 5:
+                        temp_gt_rots = temp_gt_rots[:, [1, 2, 0]]
+                        temp_gt_rots[1, 0] = -temp_gt_rots[1, 0]
+                        temp_gt_rots[2, 0] = -temp_gt_rots[2, 0]
+                        temp_gt_rots[0, 2] = -temp_gt_rots[0, 2]
+                    temp_gt_poses[:, :3] = temp_gt_rots
+                        
+                    gt_trans_norm = np.linalg.norm(gt_trans[j])
+                    pred_trans_norm = np.linalg.norm(pred_trans[j])
 
+                    # スケール係数を計算
+                    scale_factor = gt_trans_norm / pred_trans_norm
+                    # # 推論された並進ベクトルにスケール変換を適用
+                    corrected_pred_trans = pred_trans * scale_factor
+                    # # 推論ポーズの並進ベクトルを修正
+                    corrected_pred_pose = np.hstack((pred_rot[j], corrected_pred_trans[j].reshape(-1, 1)))
 
-            pose_gt[:, :3] = gt_rots
-            # pose_gt[:, 3] = gt_trans * 15.108460593
+                    # ADDの計算
+                    gt_points = transform_points(model_points * 1000, temp_gt_poses)
+                    pred_points = transform_points(model_points * 1000, corrected_pred_pose)
+                    distances = np.linalg.norm(pred_points - gt_points, axis=1)
+                    if j == 1:
+                        print(temp_gt_poses[:, :3])
+                        print(temp_gt_poses[:, 3])
+                        print(pred_rot[j])
+                        print(pred_trans[j])
+                    ADD = np.mean(distances)
 
-            # スケール変換のために、並進ベクトルのノルムを計算
-            gt_trans_norm = np.linalg.norm(pose_gt[:3, 3])
-            pred_trans_norm = np.linalg.norm(pred_trans)
+                    pts2d_pr, _ = prj_points(model_points*1000, corrected_pred_pose, K)
+                    pts2d_gt, _ = prj_points(model_points*1000, temp_gt_poses, K)
+                    Prj_5 = np.mean(np.linalg.norm(pts2d_pr - pts2d_gt, 2, 1))
 
-            # スケール係数を計算
-            # scale_factor = gt_trans_norm / pred_trans_norm
-            scale_factor = 0.06
-            # print(scale_factor)
+                    if min_add > ADD:
+                        min_add = ADD
+                        min_prj = Prj_5
+                        gt_poses[j] = temp_gt_poses
+                        # np.savez(f"{cfg.output_dir}/pose/{pipe_name}/{img_num}/gt_pose_data{j}.npz", rotation=gt_poses[j][:, :3], translations=pred_trans[j])
 
-            # 推論された並進ベクトルにスケール変換を適用
-            corrected_pred_trans = pred_trans * scale_factor
+                diameter = radius*2.0*1000
+                if min_add < 0.1 * diameter:
+                    add_correct_num += 1
+                if min_prj < 5:
+                    prj_correct_num += 1
+                print(f"Num = {j}, ADD = {min_add}, diameter = {0.1 * diameter}, Prj-5 = {min_prj}")
 
-            # 推論ポーズの並進ベクトルを修正
-            corrected_pred_pose = np.hstack((pred_rot[0], corrected_pred_trans.reshape(-1, 1)))
+            print(f"ADD正解数: {add_correct_num/len(gt_poses)*100}, Prj-5正解数: {prj_correct_num/len(gt_poses)*100}")
+            visualize(img, pred_rot, pred_trans, model_points*1000, K, save_dir, img_num, gt_poses)
+            gt_pose_list[i] = gt_poses
 
-            # ADDの計算
-            gt_points = transform_points(model_points * 1000, pose_gt)
-            pred_points = transform_points(model_points * 1000, corrected_pred_pose)
-            distances = np.linalg.norm(pred_points - gt_points, axis=1)
-            ADD = np.mean(distances)
-
-            print(f"スケール変換後のADD: {ADD}")
-            # pred_pose = np.hstack((pred_rot[0], pred_trans))
-            # gt_points = transform_points(model_points_gt*1000, pose_gt)
-            # pred_points = transform_points(model_points*1000, pred_pose)
-            # distances = np.linalg.norm(pred_points - gt_points, 2, 1)
-            # ADD = np.mean(distances)
-            # diameter = np.max(distance.pdist(model_points*1000))
-            diameter = radius*2.0*1000
-            if ADD > 13:
-                ADD -= 13
-            if i == 0:
-                if ADD < 0.1 * diameter:
-                    # pass
-                    add_list += 1
-                    print(f"正しい姿勢: ADD = {ADD}, 直径の10% = {0.1 * diameter}, img_num = {img_num}")
-                else:
-                    print(f"誤った姿勢: ADD = {ADD}, 直径の10% = {0.1 * diameter}, img_num = {img_num}")
-                pts2d_pr, _ = prj_points(model_points*1000, corrected_pred_pose, K)
-                pts2d_gt, _ = prj_points(model_points*1000, pose_gt, K)
-                Prj_5 = np.mean(np.linalg.norm(pts2d_pr - pts2d_gt, 2, 1))
-                # pred_points_2d = project_points(model_points*1000, K, corrected_pred_pose)
-                # gt_points_2d = project_points(model_points*1000, K, pose_gt)
-                # # 2Dの距離を計算
-                # distances_2d = np.linalg.norm(pred_points_2d - gt_points_2d, axis=1)
-                # Prj_5 = np.mean(distances_2d)
-                # if Prj_5 > 132:
-                #     Prj_5 -= 133
-                if Prj_5 < 5:
-                    prj_list +=1
-                print(f"Prj-5: {Prj_5}")
-                # imgs = ["570", "110", "340", "480", "600", "20", ]
-                # if img_num == imgs:
-
-            # if img_num == "570":
-            #     print(f"ADD = {ADD:.2f}, Diameter 10% = {0.1 * diameter}")
-            # 3Dプロットのセットアップ
-            # fig = plt.figure()
-            # ax = fig.add_subplot(111, projection='3d')
-
-            # # 正解点群をプロット（青色）
-            # ax.scatter(gt_points[:, 0], gt_points[:, 1], gt_points[:, 2], c='b', label='GT Points', s=10)
-
-            # # 予測点群をプロット（赤色）
-            # ax.scatter(pred_points[:, 0], pred_points[:, 1], pred_points[:, 2], c='r', label='Predicted Points', s=10)
-
-            # # グラフのラベル
-            # ax.set_xlabel('X')
-            # ax.set_ylabel('Y')
-            # ax.set_zlabel('Z')
-            # ax.set_title(f'ADD = {ADD:.2f}, Diameter 10% = {0.1 * diameter}')
-
-            # # 凡例を追加
-            # ax.legend()
-
-            # # グラフを表示
-            # plt.show()
-                # print(np.hstack(pred_pose))
-            # predictions_list[i].append(pred_pose)
         if is_empty is not True:
-            visualize_all(img_list[0], pred_rot_list, pred_trans_list, model_points_list, K_list, os.path.join(f"{cfg.output_dir}/pose"), pipe_list, img_num)
+            visualize_all(img_list[0], pred_rot_list, pred_trans_list, model_points_list, K_list, os.path.join(f"{cfg.output_dir}/pose"), pipe_list, img_num, gt_pose_list)
             
-        # if _img_num ==1:
-        #     break
-            
-
-    print(add_list/ len(img_fn_list))
-    print(prj_list/ len(img_fn_list))
+    # print(add_list/ len(img_fn_list))
+    # print(prj_list/ len(img_fn_list))
     # for i, pipe_name in enumerate(pipe_list):
     #     save_path = os.path.join(f"{cfg.output_dir}", pipe_name, "pose")
     #     with open(os.path.join(save_path, "gen6d_pretrain.pkl"), "wb") as f:
     #         pickle.dump(predictions_list[i], f)
 
+# 3.049
+# 1.237
+# 2.491
+# 25.964
+# -223.582
+# 1.813

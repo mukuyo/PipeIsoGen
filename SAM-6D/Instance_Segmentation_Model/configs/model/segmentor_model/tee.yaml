@@ -1,5 +1,5 @@
 _target_: model.fast_sam.FastSAM
-checkpoint_path: ./SAM-6D/Instance_Segmentation_Model/checkpoints/pipe/tee/best.pt
+checkpoint_path: ./data/outputs/segmentation/train/tee/weights/best.pt
 segmentor_width_size: ${model.segmentor_width_size}
 config:
   iou_threshold: 0.9

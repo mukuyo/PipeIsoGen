@@ -30,3 +30,4 @@ pillow
 ezdxf
 pyrealsense2
 open3d
+plyfile

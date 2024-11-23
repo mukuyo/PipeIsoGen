@@ -56,7 +56,7 @@ def get_bbox_center_coordinate(bbox_coordinates):
 
     return center_corrected
 
-def draw_3d_bbox(img, imgpts, color, size=2):
+def draw_3d_bbox(img, imgpts, color, size=2, center_color=(255, 0, 0)):
     imgpts = np.int32(imgpts).reshape(-1, 2)
 
     # draw ground layer in darker color
@@ -72,6 +72,12 @@ def draw_3d_bbox(img, imgpts, color, size=2):
     # finally, draw top layer in color
     for i, j in zip([0, 1, 2, 3],[1, 3, 0, 2]):
         img = cv2.line(img, tuple(imgpts[i]), tuple(imgpts[j]), color, size)
+
+    # center = np.mean(imgpts, axis=0).astype(int)
+    
+    # Draw a circle at the center of the 3D bbox
+    # img = cv2.circle(img, tuple(center), 3, center_color, -1)  # Red circle at the center
+
     return img, imgpts
 
 def draw_3d_pts(img, imgpts, color, size=1):
@@ -79,19 +85,6 @@ def draw_3d_pts(img, imgpts, color, size=1):
     for point in imgpts:
         img = cv2.circle(img, (point[0], point[1]), size, color, -1)
     return img
-
-def project_points(pts,RT,K):
-    # print("RT shape:", RT.shape)
-    # print("pts shape:", pts.shape)
-    pts = np.matmul(pts,RT[:,:3].transpose())+RT[:,3:].transpose()
-    pts = np.matmul(pts,K.transpose())
-    dpt = pts[:,2]
-    mask0 = (np.abs(dpt)<1e-4) & (np.abs(dpt)>0)
-    if np.sum(mask0)>0: dpt[mask0]=1e-4
-    mask1=(np.abs(dpt) > -1e-4) & (np.abs(dpt) < 0)
-    if np.sum(mask1)>0: dpt[mask1]=-1e-4
-    pts2d = pts[:,:2]/dpt[:,None]
-    return pts2d, dpt
 
 def pts_range_to_bbox_pts(max_pt, min_pt):
     if not (hasattr(max_pt, '__iter__') and hasattr(min_pt, '__iter__')):
@@ -135,152 +128,37 @@ def draw_bbox_3d(img,pts2d,color=(0,255,0)):
     img = cv2.line(img,tuple(pts2d[3]),tuple(pts2d[7]),color,2)
     return img
 
-# def draw_detections(image, pred_rots, pred_trans, model_points, intrinsics, gt_intrinsics, gt_rots, gt_trans, pose_gt, model_points_gt, color=(255, 0, 0), save_dir=None):
-#     num_pred_instances = len(pred_rots)
-#     draw_image_bbox = image.copy()
-#     # 3d bbox
-#     scale = (np.max(model_points, axis=0) - np.min(model_points, axis=0))
-#     shift = np.mean(model_points, axis=0)
-#     bbox_3d = get_3d_bbox(scale, shift)
-
-#     scale_gt = (np.max(model_points_gt, axis=0) - np.min(model_points_gt, axis=0))
-#     shift_gt = np.mean(model_points_gt, axis=0)
-#     bbox_3d_gt = get_3d_bbox(scale_gt, shift_gt)
-
-#     # 3d point
-#     choose = np.random.choice(np.arange(len(model_points)), 512)
-#     pts_3d = model_points[choose].T
-#     combined_list = []
-#     for ind in range(num_pred_instances):
-#         color=(0, 0, 255)
-#         # draw 3d bounding box
-#         transformed_bbox_3d = pred_rots[ind]@bbox_3d + pred_trans[ind][:,np.newaxis]
-#         projected_bbox = calculate_2d_projections(transformed_bbox_3d, intrinsics[ind])
-#         draw_image_bbox, _ = draw_3d_bbox(draw_image_bbox, projected_bbox, color)
-#         # draw point cloud
-#         # transformed_pts_3d = pred_rots[ind]@pts_3d + pred_trans[ind][:,np.newaxis]
-#         # projected_pts = calculate_2d_projections(transformed_pts_3d, intrinsics[ind])
-#         # draw_image_bbox = draw_3d_pts(draw_image_bbox, projected_pts, color)
-
-#         color=(0, 255, 0)
-#         # draw 3d bounding box
-#         # transformed_bbox_3d = gt_rots@bbox_3d + gt_trans[:,np.newaxis]
-#         # projected_bbox = calculate_2d_projections(transformed_bbox_3d, gt_intrinsics)
-#         # gt_trans *= 15
-#         print(pred_trans, gt_trans)
-#         # object_bbox_3d = pts_range_to_bbox_pts(np.max(model_points_gt), np.min(model_points_gt))
-#         max_pt = np.max(model_points_gt, axis=0)
-#         min_pt = np.min(model_points_gt, axis=0)
-        
-#         # max_pt と min_pt が (x, y, z) の形式であることを確認する
-#         transformed_bbox_3d = gt_rots@bbox_3d_gt +gt_trans[:,np.newaxis]
-#         projected_bbox = calculate_2d_projections(transformed_bbox_3d, gt_intrinsics)
-#         draw_image_bbox, _ = draw_3d_bbox(draw_image_bbox, projected_bbox, color)
-#         # object_bbox_3d = pts_range_to_bbox_pts(max_pt, min_pt)
-#         # projected_bbox,_ = project_points(object_bbox_3d, pose_gt, intrinsics[ind])
-#         # draw_image_bbox, _ = draw_3d_bbox(draw_image_bbox, projected_bbox, color)
-#         # draw point cloud
-#         # transformed_pts_3d = gt_rots@pts_3d + gt_trans[:,np.newaxis]
-#         # projected_pts = calculate_2d_projections(transformed_pts_3d, intrinsics[ind])
-#         # draw_image_bbox = draw_3d_pts(draw_image_bbox, projected_pts, color)
-
-#         # center_coordinate = get_bbox_center_coordinate(transformed_bbox_3d)
-#         # trans_reshaped = center_coordinate.reshape(-1, 1)
-#         # combined_arr = np.hstack((pred_rots[ind], trans_reshaped))
-#         # combined_list.append(combined_arr)
-#     np.save(os.path.join(save_dir, "pose.npy"), np.array(combined_list))
-
-#     return draw_image_bbox
-
-
-def draw_detections(image, pred_rots, pred_trans, model_points, intrinsics, gt_intrinsics, gt_rots, gt_trans, pose_gt, model_points_gt, color=(255, 0, 0), save_dir=None):
-    num_pred_instances = len(pred_rots)
-    draw_image_bbox = image.copy()
-    # 3d bbox
-    scale = (np.max(model_points, axis=0) - np.min(model_points, axis=0))
-    shift = np.mean(model_points, axis=0)
-    bbox_3d = get_3d_bbox(scale, shift)
-
-    scale_gt = (np.max(model_points_gt, axis=0) - np.min(model_points_gt, axis=0))
-    shift_gt = np.mean(model_points_gt, axis=0)
-    bbox_3d_gt = get_3d_bbox(scale_gt, shift_gt)
-
-    # 3d point
-    choose = np.random.choice(np.arange(len(model_points)), 512)
-    pts_3d = model_points[choose].T
-    combined_list = []
-    for ind in range(num_pred_instances):
-        color=(0, 0, 255)
-        # draw 3d bounding box
-        transformed_bbox_3d = pred_rots[ind]@bbox_3d + pred_trans[ind][:,np.newaxis]
-        projected_bbox = calculate_2d_projections(transformed_bbox_3d, intrinsics[ind])
-        draw_image_bbox, _ = draw_3d_bbox(draw_image_bbox, projected_bbox, color)
-        # draw point cloud
-        # transformed_pts_3d = pred_rots[ind]@pts_3d + pred_trans[ind][:,np.newaxis]
-        # projected_pts = calculate_2d_projections(transformed_pts_3d, intrinsics[ind])
-        # draw_image_bbox = draw_3d_pts(draw_image_bbox, projected_pts, color)
-
-        color=(0, 255, 0)
-        transformed_bbox_3d = pts_range_to_bbox_pts(np.max(model_points_gt,0), np.min(model_points_gt,0))
-        # transformed_bbox_3d = np.array([[    -0.7409,   -0.087899,     -2.6196],
-        #                                 [    -0.7409,     0.85776  ,   -2.6196],
-        #                                 [    0.52891,     0.85776 ,    -2.6196],
-        #                                 [    0.52891,   -0.087899,     -2.6196],
-        #                                 [    -0.7409,   -0.087899 ,    -1.3976],
-        #                                 [    -0.7409,     0.85776,     -1.3976],
-        #                                 [    0.52891,     0.85776 ,    -1.3976],
-        #                                 [    0.52891,   -0.087899,     -1.3976]])
-        # transformed_bbox_3d = np.array([[   -0.55432,    -0.80312,     -2.7515],
-        #                                 [   -0.55432,     0.16901,     -2.7515],
-        #                                 [    0.58109,     0.16901,     -2.7515],
-        #                                 [    0.58109,    -0.80312,     -2.7515],
-        #                                 [   -0.55432,    -0.80312,     -1.4227],
-        #                                 [   -0.55432,     0.16901,     -1.4227],
-        #                                 [    0.58109,     0.16901,     -1.4227],
-        #                                 [    0.58109,    -0.80312,     -1.4227]])
-        # gt_intrinsics = np.array([[619.09, 0, 320],
-        #            [0, 619.09, 240],
-        #            [0, 0, 1]])
-        projected_bbox, _ = project_points(transformed_bbox_3d, pose_gt, gt_intrinsics)
-        draw_image_bbox = draw_bbox_3d(draw_image_bbox, projected_bbox, color)
-
-    np.save(os.path.join(save_dir, "pose.npy"), np.array(combined_list))
-    return draw_image_bbox
-
-def draw_detections_all(image, pred_rot_list, pred_tran_list, model_point_list, intrinsic_list, save_dir, object_list, img_num):
-    draw_image_bbox = image.copy()
+def draw_detections_all(image, pred_rot_list, pred_tran_list, model_points_list, intrinsics_list, save_dir, object_list, img_num, gt_pose_list):
+    pcl_image = image.copy()
+    gt_image = image.copy()
 
     for i, obj_name in enumerate(object_list):
         pred_rots = pred_rot_list[i]
         pred_trans = pred_tran_list[i]
-        model_points = model_point_list[i]
-        intrinsics = intrinsic_list[i]
-        color = (255, 100, 0)
-        if i == 1:
-            color = (0, 100, 255)
+        color = (255, 100, 0) if i == 0 else (0, 100, 255)
 
         num_pred_instances = len(pred_rots)
         
         # 3d bbox
-        scale = (np.max(model_points, axis=0) - np.min(model_points, axis=0))
-        shift = np.mean(model_points, axis=0)
+        scale = (np.max(model_points_list[i], axis=0) - np.min(model_points_list[i], axis=0))
+        shift = np.mean(model_points_list[i], axis=0)
         bbox_3d = get_3d_bbox(scale, shift)
 
         # 3d point
-        choose = np.random.choice(np.arange(len(model_points)), 512)
-        pts_3d = model_points[choose].T
+        choose = np.random.choice(np.arange(len(model_points_list[i])), 512)
+        pts_3d = model_points_list[i][choose].T
         
         imgpts_list = []
         combined_list = []
         for ind in range(num_pred_instances):
             # draw 3d bounding box
             transformed_bbox_3d = pred_rots[ind]@bbox_3d + pred_trans[ind][:,np.newaxis]
-            projected_bbox = calculate_2d_projections(transformed_bbox_3d, intrinsics[ind])
-            draw_image_bbox, imgpts = draw_3d_bbox(draw_image_bbox, projected_bbox, color)
+            projected_bbox = calculate_2d_projections(transformed_bbox_3d, intrinsics_list[i][ind])
+            pcl_image, imgpts = draw_3d_bbox(pcl_image, projected_bbox, color)
             # draw point cloud
             transformed_pts_3d = pred_rots[ind]@pts_3d + pred_trans[ind][:,np.newaxis]
-            projected_pts = calculate_2d_projections(transformed_pts_3d, intrinsics[ind])
-            draw_image_bbox = draw_3d_pts(draw_image_bbox, projected_pts, color)
+            projected_pts = calculate_2d_projections(transformed_pts_3d, intrinsics_list[i][ind])
+            pcl_image = draw_3d_pts(pcl_image, projected_pts, color)
 
             center_coordinate = get_bbox_center_coordinate(transformed_bbox_3d)
             trans_reshaped = center_coordinate.reshape(-1, 1)
@@ -289,8 +167,40 @@ def draw_detections_all(image, pred_rot_list, pred_tran_list, model_point_list, 
             
             imgpts_list.append(imgpts)
 
+        for ind in range(num_pred_instances):
+            transformed_bbox_3d = pred_rots[ind]@bbox_3d + pred_trans[ind][:,np.newaxis]
+            projected_bbox = calculate_2d_projections(transformed_bbox_3d, intrinsics_list[i][ind])
+            gt_image, _ = draw_3d_bbox(gt_image, projected_bbox, (0, 0, 255))
+
+            _transformed_bbox_3d = gt_pose_list[i][ind][:, :3]@bbox_3d + gt_pose_list[i][ind][:, 3].reshape(-1, 1)
+            _projected_bbox = calculate_2d_projections(_transformed_bbox_3d, intrinsics_list[i][ind])
+            gt_image, _ = draw_3d_bbox(gt_image, _projected_bbox, (0, 255, 0))
+
         np.save(os.path.join(save_dir, obj_name, img_num, "pose.npy"), np.array(combined_list))
         np.save(os.path.join(save_dir, obj_name, img_num, "3d_bbox_projected.npy"), imgpts_list)
         
+    return pcl_image, gt_image 
 
+def draw_detections(image, pred_rots, pred_trans, model_points, intrinsics, gt_poses, color=(255, 0, 0), save_dir=None):
+    num_pred_instances = len(pred_rots)
+    draw_image_bbox = image.copy()
+    # 3d bbox
+    scale = (np.max(model_points, axis=0) - np.min(model_points, axis=0))
+    shift = np.mean(model_points, axis=0)
+    bbox_3d = get_3d_bbox(scale, shift)
+
+    combined_list = []
+    print("num_pred_instances:", num_pred_instances)
+    for ind in range(num_pred_instances):
+        color=(0, 0, 255)
+        transformed_bbox_3d = pred_rots[ind]@bbox_3d + pred_trans[ind][:,np.newaxis]
+        projected_bbox = calculate_2d_projections(transformed_bbox_3d, intrinsics[ind])
+        draw_image_bbox, _ = draw_3d_bbox(draw_image_bbox, projected_bbox, color)
+        
+        color=(0, 255, 0)
+        _transformed_bbox_3d = gt_poses[ind][:, :3]@bbox_3d + gt_poses[ind][:, 3].reshape(-1, 1)
+        _projected_bbox = calculate_2d_projections(_transformed_bbox_3d, intrinsics[ind])
+        draw_image_bbox, _ = draw_3d_bbox(draw_image_bbox, _projected_bbox, color)
+
+    np.save(os.path.join(save_dir, "pose.npy"), np.array(combined_list))
     return draw_image_bbox
