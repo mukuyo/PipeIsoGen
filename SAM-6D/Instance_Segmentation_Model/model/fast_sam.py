@@ -246,7 +246,7 @@ class FastSAM(object):
     def generate_masks(self, image) -> List[Dict[str, Any]]:
         # if self.segmentor_width_size is not None:
         orig_size = image.shape[:2]
-        detections = self.model.predict(image, conf=0.05)
+        detections = self.model.predict(image, conf=0.4)
 
         if detections[0].masks is None:
             return None

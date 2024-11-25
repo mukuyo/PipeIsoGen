@@ -62,7 +62,7 @@ def get_parser():
     parser.add_argument("--img_dir", nargs="?", help="Path to image")
     parser.add_argument("--cam_path", nargs="?", help="Path to camera information")
     parser.add_argument("--pipe_list", default="", help="The list of pipe names")
-    parser.add_argument("--det_score_thresh", default=0.15, help="The score threshold of detection")
+    parser.add_argument("--det_score_thresh", default=0.05, help="The score threshold of detection")
     
     args_cfg = parser.parse_args()
 
@@ -157,6 +157,12 @@ def prj_points(pts,RT,K):
     pts2d = pts[:,:2]/dpt[:,None]
     return pts2d, dpt
 
+def project_points(points, rotation, translation, camera_matrix):
+    """3Dポイントを2Dへ射影"""
+    points_3d = np.dot(points, rotation.T) + translation.transpose()
+    points_2d = points_3d[:, :2] / points_3d[:, 2][:, np.newaxis]  # z軸で正規化
+    return np.dot(points_2d, camera_matrix[:2, :2]) + camera_matrix[:2, 2]
+
 def get_templates(path, cfg):
     n_template_view = cfg.n_template_view
     all_tem = []
@@ -191,6 +197,8 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
     whole_pts = get_point_cloud_from_depth(whole_depth, K)
     
     radius = np.max(np.linalg.norm(model_points, axis=1))
+    print(f"radius = {radius}")
+
     # point_cloud = o3d.geometry.PointCloud()
     # point_cloud.points = o3d.utility.Vector3dVector(model_points)
     
@@ -240,10 +248,15 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
         center = np.mean(cloud, axis=0)
         tmp_cloud = cloud - center[None, :]
 
-        flag = np.linalg.norm(tmp_cloud, axis=1) < radius * 1.7
+        flag = np.zeros(4)
+        loop_count = 0
+        while np.sum(flag) < 40:
+            flag = np.linalg.norm(tmp_cloud, axis=1) < (radius * (1.8 + loop_count * 1))
+            loop_count += 1.0
         # print(np.linalg.norm(tmp_cloud, axis=1), radius * 2.0)
-        if np.sum(flag) < 4:
-            continue
+        # if np.sum(flag) < 4:
+        #     print("Too few points")
+        #     continue
         choose = choose[flag]
         cloud = cloud[flag]
 
@@ -347,28 +360,28 @@ if __name__ == "__main__":
 
             file_path = f'./data/outputs/pose/{pipe_name}/gt_poses.json'
             gt_poses = []
-            # with open(file_path, 'rb') as f:
-            #     pose = json.load(f)
-            #     for data in pose['poses']:
-            #         pose = np.array([                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
-            #             [data['rotation']['row0']['x'], data['rotation']['row0']['y'], data['rotation']['row0']['z'], data['translation']['x'], data['rotationAsEuler']['x']],
-            #             [data['rotation']['row1']['x'], data['rotation']['row1']['y'], data['rotation']['row1']['z'], data['translation']['y'], data['rotationAsEuler']['y']],
-            #             [data['rotation']['row2']['x'], data['rotation']['row2']['y'], data['rotation']['row2']['z'], data['translation']['z'], data['rotationAsEuler']['z']]
-            #         ])
-            #         gt_poses.append(pose)
-            temp = [13, 11]
-            for l in range(temp[i]):
-                file_path = f'./data/outputs/pose/{pipe_name}/{0}/gt_pose_data{l}.npz'
-                data = np.load(file_path)
-                # gt_poses[l][:, :3] = data['rotation']
-                # gt_poses[l][:, 3] = data['translations']
-                # gt_poses[l][:, 4] = data['euler_angles']
-                pose = np.array([
-                    [data['rotation'][0, 0], data['rotation'][0, 1], data['rotation'][0, 2], data['translations'][0]],
-                    [data['rotation'][1, 0], data['rotation'][1, 1], data['rotation'][1, 2], data['translations'][1]],
-                    [data['rotation'][2, 0], data['rotation'][2, 1], data['rotation'][2, 2], data['translations'][2]]
-                ])
-                gt_poses.append(pose)
+            with open(file_path, 'rb') as f:
+                pose = json.load(f)
+                for data in pose['poses']:
+                    pose = np.array([                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+                        [data['rotation']['row0']['x'], data['rotation']['row0']['y'], data['rotation']['row0']['z'], data['translation']['x']],
+                        [data['rotation']['row1']['x'], data['rotation']['row1']['y'], data['rotation']['row1']['z'], data['translation']['y']],
+                        [data['rotation']['row2']['x'], data['rotation']['row2']['y'], data['rotation']['row2']['z'], data['translation']['z']]
+                    ])
+                    gt_poses.append(pose)
+            # temp = [13, 11]
+            # for l in range(temp[i]):
+            #     file_path = f'./data/outputs/pose/{pipe_name}/{0}/gt_pose_data{l}.npz'
+            #     data = np.load(file_path)
+            #     # gt_poses[l][:, :3] = data['rotation']
+            #     # gt_poses[l][:, 3] = data['translations']
+            #     # gt_poses[l][:, 4] = data['euler_angles']
+            #     pose = np.array([
+            #         [data['rotation'][0, 0], data['rotation'][0, 1], data['rotation'][0, 2], data['translations'][0]],
+            #         [data['rotation'][1, 0], data['rotation'][1, 1], data['rotation'][1, 2], data['translations'][1]],
+            #         [data['rotation'][2, 0], data['rotation'][2, 1], data['rotation'][2, 2], data['translations'][2]]
+            #     ])
+            #     gt_poses.append(pose)
         gt_pose_list[i] = gt_poses
 
     for _img_num, _ in enumerate(tqdm(glob.glob(img_dir + "/rgb/*.png"))):
@@ -391,7 +404,6 @@ if __name__ == "__main__":
                 is_empty = True
                 print(f"File not found: {file_path}")
                 continue
-
 
             # print("=> loading input data ...")
             input_data, img, whole_pts, model_points, detections, radius= get_test_data(
@@ -434,12 +446,49 @@ if __name__ == "__main__":
             gt_rot = []
             gt_trans = []
             gt_pose_data = []
-            gt_poses = gt_pose_list[i]
+            gt_poses = []
+            # for j, pose in enumerate(gt_pose_list[i]):
+            #     min_dist = float('inf')
+            #     min_num = 0
+            #     for m, trans in enumerate(pred_trans):
+            #         # pose_position = pose[:, 3][:3]
+            #         # trans_position = trans[:3]
+            #         # distance = np.linalg.norm(pose_position - trans_position)
+            #         distance = abs(trans[0] - pose[0, 3]) + abs(trans[1] - pose[1, 3])
+            #         print(f"m = {m}, distance = {distance}, trans = {trans[:3]}, pose = {pose[:, 3][:3]}")
+            #         if distance < min_dist:
+            #             min_dist = distance
+            #             min_num = m
+            #     print(f"min_num = {min_num}")
+            #     gt_poses.append(gt_pose_list[i][min_num])
+            #     gt_rot.append(gt_pose_list[i][min_num][:, :3])
+            #     gt_trans.append(gt_pose_list[i][min_num][:, 3])
 
-            for j, pose in enumerate(gt_poses):
-                # pose[:, 3] = pred_trans[j]
-                gt_rot.append(pose[:, :3])
-                gt_trans.append(pose[:, 3])     
+            for j, pose in enumerate(gt_pose_list[i]):
+                pose[:, 3] = np.array([pose[:, 3][0], -pose[:, 3][1]-2, pose[:, 3][2]])
+
+            for j, trans in enumerate(pred_trans):
+                min_dist = float('inf')
+                min_num = 0
+                min_trans = np.zeros((3, 1), dtype=np.float32)
+                for m, pose in enumerate(gt_pose_list[i]):
+                    distance = np.linalg.norm(pose[:, 3] - trans)
+                    # print(f"m = {m}, distance = {distance}, trans = {trans[:3]}, pose = {pose[:, 3][:3]}")
+                    if distance < min_dist:
+                        min_dist = distance
+                        min_trans = trans
+                        min_num = m
+                # print(f"min_num = {min_num}")
+                
+                gt_poses.append(gt_pose_list[i][min_num])
+                gt_rot.append(gt_pose_list[i][min_num][:, :3])
+                gt_trans.append(gt_pose_list[i][min_num][:, 3]) 
+
+            # for j, pose in enumerate(gt_pose_list[i]):
+            #     pose[:, 3] = np.array([pose[:, 3][0], -pose[:, 3][1]-2, pose[:, 3][2]])
+            #     gt_poses.append(pose)
+            #     gt_rot.append(pose[:, :3])
+            #     gt_trans.append(pose[:, 3])
 
             # save_list = [0]
             # if i == 1:
@@ -455,9 +504,10 @@ if __name__ == "__main__":
 
             add_correct_num = 0
             prj_correct_num = 0
-            for j in range(len(gt_poses)):
+            for j in range(len(pred_trans)):
                 min_add = float('inf')
-                for k in range(1):
+                min_prj = float('inf')
+                for k in range(8):
                     temp_gt_poses = gt_poses[j].copy()
                     temp_gt_rots = gt_rot[j].copy()
 
@@ -479,6 +529,21 @@ if __name__ == "__main__":
                         temp_gt_rots[1, 0] = -temp_gt_rots[1, 0]
                         temp_gt_rots[2, 0] = -temp_gt_rots[2, 0]
                         temp_gt_rots[0, 2] = -temp_gt_rots[0, 2]
+                    elif k == 6:
+                        temp_gt_rots = temp_gt_rots[:, [1, 2, 0]]
+                        temp_gt_rots[1, 0] = -temp_gt_rots[1, 0]
+                        temp_gt_rots[2, 0] = -temp_gt_rots[2, 0]
+                        temp_gt_rots[0, 2] = -temp_gt_rots[0, 2]
+                        temp_gt_rots[:, 0] = -temp_gt_rots[:, 0]
+                        temp_gt_rots[:, 2] = -temp_gt_rots[:, 2]
+                    elif k == 7:
+                        temp_gt_rots = temp_gt_rots[:, [2, 0, 1]]
+                        temp_gt_rots[1, 0] = -temp_gt_rots[1, 0]
+                        temp_gt_rots[2, 0] = -temp_gt_rots[2, 0]
+                        temp_gt_rots[0, 1] = -temp_gt_rots[0, 1]
+                    elif k == 8:
+                        temp_gt_rots = temp_gt_rots[:, [0, 2, 1]]
+                        temp_gt_rots[:, 0] = -temp_gt_rots[:, 0]
                     temp_gt_poses[:, :3] = temp_gt_rots
                         
                     gt_trans_norm = np.linalg.norm(gt_trans[j])
@@ -495,21 +560,27 @@ if __name__ == "__main__":
                     gt_points = transform_points(model_points * 1000, temp_gt_poses)
                     pred_points = transform_points(model_points * 1000, corrected_pred_pose)
                     distances = np.linalg.norm(pred_points - gt_points, axis=1)
-                    if j == 1:
-                        print(temp_gt_poses[:, :3])
-                        print(temp_gt_poses[:, 3])
-                        print(pred_rot[j])
-                        print(pred_trans[j])
                     ADD = np.mean(distances)
+                    # if j == 0:
+                    #     print(temp_gt_poses[:, :3])
+                    #     print(temp_gt_poses[:, 3])
+                    #     print(pred_rot[j])
+                    #     print(pred_trans[j])
 
-                    pts2d_pr, _ = prj_points(model_points*1000, corrected_pred_pose, K)
-                    pts2d_gt, _ = prj_points(model_points*1000, temp_gt_poses, K)
-                    Prj_5 = np.mean(np.linalg.norm(pts2d_pr - pts2d_gt, 2, 1))
+                    # pts2d_pr, _ = prj_points(model_points*1000, corrected_pred_pose, K)
+                    # pts2d_gt, _ = prj_points(model_points*1000, temp_gt_poses, K)
+                    true_projection = project_points(model_points*1000, temp_gt_poses[:, :3], temp_gt_poses[:, 3], K)
+                    pred_projection = project_points(model_points*1000, pred_rot[j], pred_trans[j], K)
+                    reprojection_error = np.linalg.norm(true_projection - pred_projection, axis=1)
+                    mean_reprojection_error = np.mean(reprojection_error)
+                    # Prj_5 = np.mean(np.linalg.norm(pts2d_pr - pts2d_gt, 2, 1))
 
                     if min_add > ADD:
                         min_add = ADD
-                        min_prj = Prj_5
                         gt_poses[j] = temp_gt_poses
+                    if min_prj > mean_reprojection_error:
+                        min_prj = mean_reprojection_error
+                        
                         # np.savez(f"{cfg.output_dir}/pose/{pipe_name}/{img_num}/gt_pose_data{j}.npz", rotation=gt_poses[j][:, :3], translations=pred_trans[j])
 
                 diameter = radius*2.0*1000

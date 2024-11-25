@@ -142,7 +142,7 @@ def draw_detections_all(image, pred_rot_list, pred_tran_list, model_points_list,
         # 3d bbox
         scale = (np.max(model_points_list[i], axis=0) - np.min(model_points_list[i], axis=0))
         shift = np.mean(model_points_list[i], axis=0)
-        bbox_3d = get_3d_bbox(scale, shift)
+        bbox_3d = get_3d_bbox(scale)
 
         # 3d point
         choose = np.random.choice(np.arange(len(model_points_list[i])), 512)
@@ -168,6 +168,8 @@ def draw_detections_all(image, pred_rot_list, pred_tran_list, model_points_list,
             imgpts_list.append(imgpts)
 
         for ind in range(num_pred_instances):
+            # if not(ind == 3):
+            #     continue
             transformed_bbox_3d = pred_rots[ind]@bbox_3d + pred_trans[ind][:,np.newaxis]
             projected_bbox = calculate_2d_projections(transformed_bbox_3d, intrinsics_list[i][ind])
             gt_image, _ = draw_3d_bbox(gt_image, projected_bbox, (0, 0, 255))
@@ -187,7 +189,8 @@ def draw_detections(image, pred_rots, pred_trans, model_points, intrinsics, gt_p
     # 3d bbox
     scale = (np.max(model_points, axis=0) - np.min(model_points, axis=0))
     shift = np.mean(model_points, axis=0)
-    bbox_3d = get_3d_bbox(scale, shift)
+    bbox_3d = get_3d_bbox(scale)
+    gt_bbox_3d = get_3d_bbox(scale)
 
     combined_list = []
     print("num_pred_instances:", num_pred_instances)
@@ -198,7 +201,7 @@ def draw_detections(image, pred_rots, pred_trans, model_points, intrinsics, gt_p
         draw_image_bbox, _ = draw_3d_bbox(draw_image_bbox, projected_bbox, color)
         
         color=(0, 255, 0)
-        _transformed_bbox_3d = gt_poses[ind][:, :3]@bbox_3d + gt_poses[ind][:, 3].reshape(-1, 1)
+        _transformed_bbox_3d = gt_poses[ind][:, :3]@gt_bbox_3d + gt_poses[ind][:, 3].reshape(-1, 1)
         _projected_bbox = calculate_2d_projections(_transformed_bbox_3d, intrinsics[ind])
         draw_image_bbox, _ = draw_3d_bbox(draw_image_bbox, _projected_bbox, color)
 

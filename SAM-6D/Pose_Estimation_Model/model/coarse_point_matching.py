@@ -74,11 +74,8 @@ class CoarsePointMatching(nn.Module):
             )
         end_points['init_R'] = init_R
         end_points['init_t'] = init_t
-        # end_points['pred_R'] = init_R
-        # end_points['pred_t'] = init_t * (radius.reshape(-1, 1)+1e-6)
 
         if self.return_feat:
             return end_points, self.out_proj(f1), self.out_proj(f2)
         else:
             return end_points
-
