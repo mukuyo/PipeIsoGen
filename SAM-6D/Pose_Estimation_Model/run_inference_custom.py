@@ -264,7 +264,7 @@ def transform_points(pts, pose):
         return (R @ pts[:,None] + t[:,None])[:,0]
     return pts @ R.T + t[None,:]
 
-def transform_points(temp_gt_rots, k):
+def transform_rot(temp_gt_rots, k):
     if k == 1:
         temp_gt_rots[:, 0] = -temp_gt_rots[:, 0]
         temp_gt_rots[:, 2] = -temp_gt_rots[:, 2]
@@ -449,7 +449,7 @@ if __name__ == "__main__":
                     temp_gt_poses = gt_poses[j].copy()
                     temp_gt_rots = gt_rot[j].copy()
 
-                    temp_gt_rots = transform_points(temp_gt_rots, k)
+                    temp_gt_rots = transform_rot(temp_gt_rots, k)
                         
                     gt_trans_norm = np.linalg.norm(gt_trans[j])
                     pred_trans_norm = np.linalg.norm(pred_trans[j])
@@ -488,9 +488,9 @@ if __name__ == "__main__":
                     add_correct_num += 1
                 if min_prj < 5:
                     prj_correct_num += 1
-                print(f"Num = {j}, ADD = {min_add}, diameter = {0.1 * diameter}, Prj-5 = {min_prj}")
+                print(f"Num = {j}, ADD = {min_add:.3f}, diameter = {0.1 * diameter:.3f}, Prj-5 = {min_prj:.3f}")
 
-            print(f"ADD正解数: {add_correct_num/len(gt_poses)*100}, Prj-5正解数: {prj_correct_num/len(gt_poses)*100}")
+            print(f"ADD正解数: {(add_correct_num/len(gt_poses)*100):.3f}, Prj-5正解数: {(prj_correct_num/len(gt_poses)*100):.3f}")
             visualize(img, pred_rot, pred_trans, model_points*1000, K, save_dir, img_num, gt_poses)
             gt_pose_list[i] = gt_poses
 
