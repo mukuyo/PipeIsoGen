@@ -146,17 +146,6 @@ def _get_template(path, cfg, tem_index=1):
     rgb_choose = get_resize_rgb_choose(choose, [y1, y2, x1, x2], cfg.img_size)
     return rgb, rgb_choose, xyz
 
-def prj_points(pts,RT,K):
-    pts = np.matmul(pts,RT[:,:3].transpose())+RT[:,3:].transpose()
-    pts = np.matmul(pts,K.transpose())
-    dpt = pts[:,2]
-    mask0 = (np.abs(dpt)<1e-4) & (np.abs(dpt)>0)
-    if np.sum(mask0)>0: dpt[mask0]=1e-4
-    mask1=(np.abs(dpt) > -1e-4) & (np.abs(dpt) < 0)
-    if np.sum(mask1)>0: dpt[mask1]=-1e-4
-    pts2d = pts[:,:2]/dpt[:,None]
-    return pts2d, dpt
-
 def project_points(points, rotation, translation, camera_matrix):
     """3Dポイントを2Dへ射影"""
     points_3d = np.dot(points, rotation.T) + translation.transpose()
@@ -197,24 +186,6 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
     whole_pts = get_point_cloud_from_depth(whole_depth, K)
     
     radius = np.max(np.linalg.norm(model_points, axis=1))
-    print(f"radius = {radius}")
-
-    # point_cloud = o3d.geometry.PointCloud()
-    # point_cloud.points = o3d.utility.Vector3dVector(model_points)
-    
-    # # 点群を表示
-    # o3d.visualization.draw_geometries([point_cloud])
-
-    
-    # plt.show()
-    # ply_data = PlyData.read("../Gen6D/data/GenMOP/elbow-ref/object_point_cloud.ply")
-
-    # # 点群データを取得する
-    # vertex_data = ply_data['vertex']
-    # model_points_gt = np.vstack((vertex_data['x'], vertex_data['y'], vertex_data['z'])).T
-
-    # model_points_gt = mesh.sample(cfg.n_sample_model_point).astype(np.float32) / 1000.0
-    # radius = np.max(np.linalg.norm(model_points, axis=1))
 
     all_rgb = []
     all_cloud = []
@@ -226,7 +197,6 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
         seg = inst['segmentation']
         score = inst['score']
 
-        # mask
         h,w = seg['size']
         try:
             rle = cocomask.frPyObjects(seg, h, w)
@@ -243,7 +213,6 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
         mask = mask[y1:y2, x1:x2]
         choose = mask.astype(np.float32).flatten().nonzero()[0]
 
-        # pts
         cloud = whole_pts.copy()[y1:y2, x1:x2, :].reshape(-1, 3)[choose, :]
         center = np.mean(cloud, axis=0)
         tmp_cloud = cloud - center[None, :]
@@ -253,10 +222,7 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
         while np.sum(flag) < 40:
             flag = np.linalg.norm(tmp_cloud, axis=1) < (radius * (1.8 + loop_count * 1))
             loop_count += 1.0
-        # print(np.linalg.norm(tmp_cloud, axis=1), radius * 2.0)
-        # if np.sum(flag) < 4:
-        #     print("Too few points")
-        #     continue
+
         choose = choose[flag]
         cloud = cloud[flag]
 
@@ -267,31 +233,12 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
         choose = choose[choose_idx]
         cloud = cloud[choose_idx]
 
-        # rgb
         rgb = whole_image.copy()[y1:y2, x1:x2, :][:,:,::-1]
         if cfg.rgb_mask_flag:   
             rgb = rgb * (mask[:,:,None]>0).astype(np.uint8)
         rgb = cv2.resize(rgb, (cfg.img_size, cfg.img_size), interpolation=cv2.INTER_LINEAR)
-        # display_rgb_image_cv(rgb)
         rgb = rgb_transform(np.array(rgb))
         rgb_choose = get_resize_rgb_choose(choose, [y1, y2, x1, x2], cfg.img_size)
-
-        # if img_num == "120":
-        #     # # 例として画像を読み込む (パスを指定してください)
-        #     img = Image.open(rgb_path) 
-
-        #     # bbox の範囲で画像をクロップ
-        #     y1, y2, x1, x2 = bbox
-        #     cropped_img = img.crop((x1, y1, x2, y2))
-
-        #     # 画像サイズをリサイズ
-        #     img_size = 256  # 例えば、256x256 にリサイズ
-        #     resized_img = cropped_img.resize((img_size, img_size))
-
-        #     # 画像を表示
-        #     plt.imshow(resized_img)
-        #     plt.axis('off')  # 軸を非表示
-        #     plt.show()
 
         all_rgb.append(torch.FloatTensor(rgb))
         all_cloud.append(torch.FloatTensor(cloud))
@@ -317,6 +264,44 @@ def transform_points(pts, pose):
         return (R @ pts[:,None] + t[:,None])[:,0]
     return pts @ R.T + t[None,:]
 
+def transform_points(temp_gt_rots, k):
+    if k == 1:
+        temp_gt_rots[:, 0] = -temp_gt_rots[:, 0]
+        temp_gt_rots[:, 2] = -temp_gt_rots[:, 2]
+    elif k == 2:
+        temp_gt_rots[:, 0] = -temp_gt_rots[:, 0]
+        temp_gt_rots[:, 1] = -temp_gt_rots[:, 1]
+    elif k == 3:
+        temp_gt_rots[:, 1] = -temp_gt_rots[:, 1]
+        temp_gt_rots[:, 2] = -temp_gt_rots[:, 2]
+    elif k == 4:
+        temp_gt_rots = temp_gt_rots[:, [1, 2, 0]]
+        temp_gt_rots[1, 0] = -temp_gt_rots[1, 0]
+        temp_gt_rots[2, 0] = -temp_gt_rots[2, 0]
+    elif k == 5:
+        temp_gt_rots = temp_gt_rots[:, [1, 2, 0]]
+        temp_gt_rots[1, 0] = -temp_gt_rots[1, 0]
+        temp_gt_rots[2, 0] = -temp_gt_rots[2, 0]
+        temp_gt_rots[0, 2] = -temp_gt_rots[0, 2]
+    elif k == 6:
+        temp_gt_rots = temp_gt_rots[:, [1, 2, 0]]
+        temp_gt_rots[1, 0] = -temp_gt_rots[1, 0]
+        temp_gt_rots[2, 0] = -temp_gt_rots[2, 0]
+        temp_gt_rots[0, 2] = -temp_gt_rots[0, 2]
+        temp_gt_rots[:, 0] = -temp_gt_rots[:, 0]
+        temp_gt_rots[:, 2] = -temp_gt_rots[:, 2]
+    elif k == 7:
+        temp_gt_rots = temp_gt_rots[:, [2, 0, 1]]
+        temp_gt_rots[1, 0] = -temp_gt_rots[1, 0]
+        temp_gt_rots[2, 0] = -temp_gt_rots[2, 0]
+        temp_gt_rots[0, 1] = -temp_gt_rots[0, 1]
+    elif k == 8:
+        temp_gt_rots = temp_gt_rots[:, [0, 2, 1]]
+        temp_gt_rots[:, 0] = -temp_gt_rots[:, 0]
+    temp_gt_poses[:, :3] = temp_gt_rots
+
+    return temp_gt_poses
+    
 if __name__ == "__main__":
 
     cfg, pipe_list, img_dir, cad_dir, cad_type = init()
@@ -369,19 +354,6 @@ if __name__ == "__main__":
                         [data['rotation']['row2']['x'], data['rotation']['row2']['y'], data['rotation']['row2']['z'], data['translation']['z']]
                     ])
                     gt_poses.append(pose)
-            # temp = [13, 11]
-            # for l in range(temp[i]):
-            #     file_path = f'./data/outputs/pose/{pipe_name}/{0}/gt_pose_data{l}.npz'
-            #     data = np.load(file_path)
-            #     # gt_poses[l][:, :3] = data['rotation']
-            #     # gt_poses[l][:, 3] = data['translations']
-            #     # gt_poses[l][:, 4] = data['euler_angles']
-            #     pose = np.array([
-            #         [data['rotation'][0, 0], data['rotation'][0, 1], data['rotation'][0, 2], data['translations'][0]],
-            #         [data['rotation'][1, 0], data['rotation'][1, 1], data['rotation'][1, 2], data['translations'][1]],
-            #         [data['rotation'][2, 0], data['rotation'][2, 1], data['rotation'][2, 2], data['translations'][2]]
-            #     ])
-            #     gt_poses.append(pose)
         gt_pose_list[i] = gt_poses
 
     for _img_num, _ in enumerate(tqdm(glob.glob(img_dir + "/rgb/*.png"))):
@@ -405,7 +377,6 @@ if __name__ == "__main__":
                 print(f"File not found: {file_path}")
                 continue
 
-            # print("=> loading input data ...")
             input_data, img, whole_pts, model_points, detections, radius= get_test_data(
                 os.path.join(img_dir, "rgb", "frame"+img_num+'.png'), os.path.join(img_dir, "depth", "frame"+img_num+'.png'), 
                 cfg.cam_path, os.path.join(cad_dir, pipe_name+'-'+cad_type+'.ply'), 
@@ -414,7 +385,6 @@ if __name__ == "__main__":
             )
             ninstance = input_data['pts'].size(0)
             
-            # print("=> running model ...")
             with torch.no_grad():
                 input_data['dense_po'] = all_tem_pts[i].repeat(ninstance,1,1)
                 input_data['dense_fo'] = all_tem_feat[i].repeat(ninstance,1,1)
@@ -428,7 +398,6 @@ if __name__ == "__main__":
             pred_rot = out['pred_R'].detach().cpu().numpy()
             pred_trans = out['pred_t'].detach().cpu().numpy() * 1000
 
-            # print("=> saving results ...")
             os.makedirs(f"{cfg.output_dir}/pose/{pipe_name}/{img_num}", exist_ok=True)
             for idx, det in enumerate(detections):
                 detections[idx]['score'] = float(pose_scores[idx])
@@ -438,7 +407,6 @@ if __name__ == "__main__":
             with open(os.path.join(f"{cfg.output_dir}/pose/{pipe_name}/{img_num}", 'detection_pem.json'), "w") as f:
                 json.dump(detections, f)
 
-            # print("=> visualizating ...")
             save_dir = os.path.join(f"{cfg.output_dir}/pose/{pipe_name}")
             valid_masks = pose_scores == pose_scores.max()
             K = input_data['K'].detach().cpu().numpy()
@@ -447,22 +415,6 @@ if __name__ == "__main__":
             gt_trans = []
             gt_pose_data = []
             gt_poses = []
-            # for j, pose in enumerate(gt_pose_list[i]):
-            #     min_dist = float('inf')
-            #     min_num = 0
-            #     for m, trans in enumerate(pred_trans):
-            #         # pose_position = pose[:, 3][:3]
-            #         # trans_position = trans[:3]
-            #         # distance = np.linalg.norm(pose_position - trans_position)
-            #         distance = abs(trans[0] - pose[0, 3]) + abs(trans[1] - pose[1, 3])
-            #         print(f"m = {m}, distance = {distance}, trans = {trans[:3]}, pose = {pose[:, 3][:3]}")
-            #         if distance < min_dist:
-            #             min_dist = distance
-            #             min_num = m
-            #     print(f"min_num = {min_num}")
-            #     gt_poses.append(gt_pose_list[i][min_num])
-            #     gt_rot.append(gt_pose_list[i][min_num][:, :3])
-            #     gt_trans.append(gt_pose_list[i][min_num][:, 3])
 
             for j, pose in enumerate(gt_pose_list[i]):
                 pose[:, 3] = np.array([pose[:, 3][0], -pose[:, 3][1]-2, pose[:, 3][2]])
@@ -473,28 +425,14 @@ if __name__ == "__main__":
                 min_trans = np.zeros((3, 1), dtype=np.float32)
                 for m, pose in enumerate(gt_pose_list[i]):
                     distance = np.linalg.norm(pose[:, 3] - trans)
-                    # print(f"m = {m}, distance = {distance}, trans = {trans[:3]}, pose = {pose[:, 3][:3]}")
                     if distance < min_dist:
                         min_dist = distance
                         min_trans = trans
                         min_num = m
-                # print(f"min_num = {min_num}")
                 
                 gt_poses.append(gt_pose_list[i][min_num])
                 gt_rot.append(gt_pose_list[i][min_num][:, :3])
                 gt_trans.append(gt_pose_list[i][min_num][:, 3]) 
-
-            # for j, pose in enumerate(gt_pose_list[i]):
-            #     pose[:, 3] = np.array([pose[:, 3][0], -pose[:, 3][1]-2, pose[:, 3][2]])
-            #     gt_poses.append(pose)
-            #     gt_rot.append(pose[:, :3])
-            #     gt_trans.append(pose[:, 3])
-
-            # save_list = [0]
-            # if i == 1:
-            # for l in range(len(gt_poses)):
-                # if l in save_list:
-                
 
             img_list.append(img)
             pred_rot_list.append(pred_rot)
@@ -511,40 +449,7 @@ if __name__ == "__main__":
                     temp_gt_poses = gt_poses[j].copy()
                     temp_gt_rots = gt_rot[j].copy()
 
-                    if k == 1:
-                        temp_gt_rots[:, 0] = -temp_gt_rots[:, 0]
-                        temp_gt_rots[:, 2] = -temp_gt_rots[:, 2]
-                    elif k == 2:
-                        temp_gt_rots[:, 0] = -temp_gt_rots[:, 0]
-                        temp_gt_rots[:, 1] = -temp_gt_rots[:, 1]
-                    elif k == 3:
-                        temp_gt_rots[:, 1] = -temp_gt_rots[:, 1]
-                        temp_gt_rots[:, 2] = -temp_gt_rots[:, 2]
-                    elif k == 4:
-                        temp_gt_rots = temp_gt_rots[:, [1, 2, 0]]
-                        temp_gt_rots[1, 0] = -temp_gt_rots[1, 0]
-                        temp_gt_rots[2, 0] = -temp_gt_rots[2, 0]
-                    elif k == 5:
-                        temp_gt_rots = temp_gt_rots[:, [1, 2, 0]]
-                        temp_gt_rots[1, 0] = -temp_gt_rots[1, 0]
-                        temp_gt_rots[2, 0] = -temp_gt_rots[2, 0]
-                        temp_gt_rots[0, 2] = -temp_gt_rots[0, 2]
-                    elif k == 6:
-                        temp_gt_rots = temp_gt_rots[:, [1, 2, 0]]
-                        temp_gt_rots[1, 0] = -temp_gt_rots[1, 0]
-                        temp_gt_rots[2, 0] = -temp_gt_rots[2, 0]
-                        temp_gt_rots[0, 2] = -temp_gt_rots[0, 2]
-                        temp_gt_rots[:, 0] = -temp_gt_rots[:, 0]
-                        temp_gt_rots[:, 2] = -temp_gt_rots[:, 2]
-                    elif k == 7:
-                        temp_gt_rots = temp_gt_rots[:, [2, 0, 1]]
-                        temp_gt_rots[1, 0] = -temp_gt_rots[1, 0]
-                        temp_gt_rots[2, 0] = -temp_gt_rots[2, 0]
-                        temp_gt_rots[0, 1] = -temp_gt_rots[0, 1]
-                    elif k == 8:
-                        temp_gt_rots = temp_gt_rots[:, [0, 2, 1]]
-                        temp_gt_rots[:, 0] = -temp_gt_rots[:, 0]
-                    temp_gt_poses[:, :3] = temp_gt_rots
+                    temp_gt_rots = transform_points(temp_gt_rots, k)
                         
                     gt_trans_norm = np.linalg.norm(gt_trans[j])
                     pred_trans_norm = np.linalg.norm(pred_trans[j])
@@ -567,21 +472,16 @@ if __name__ == "__main__":
                     #     print(pred_rot[j])
                     #     print(pred_trans[j])
 
-                    # pts2d_pr, _ = prj_points(model_points*1000, corrected_pred_pose, K)
-                    # pts2d_gt, _ = prj_points(model_points*1000, temp_gt_poses, K)
                     true_projection = project_points(model_points*1000, temp_gt_poses[:, :3], temp_gt_poses[:, 3], K)
                     pred_projection = project_points(model_points*1000, pred_rot[j], pred_trans[j], K)
                     reprojection_error = np.linalg.norm(true_projection - pred_projection, axis=1)
                     mean_reprojection_error = np.mean(reprojection_error)
-                    # Prj_5 = np.mean(np.linalg.norm(pts2d_pr - pts2d_gt, 2, 1))
 
                     if min_add > ADD:
                         min_add = ADD
                         gt_poses[j] = temp_gt_poses
                     if min_prj > mean_reprojection_error:
                         min_prj = mean_reprojection_error
-                        
-                        # np.savez(f"{cfg.output_dir}/pose/{pipe_name}/{img_num}/gt_pose_data{j}.npz", rotation=gt_poses[j][:, :3], translations=pred_trans[j])
 
                 diameter = radius*2.0*1000
                 if min_add < 0.1 * diameter:
@@ -596,17 +496,3 @@ if __name__ == "__main__":
 
         if is_empty is not True:
             visualize_all(img_list[0], pred_rot_list, pred_trans_list, model_points_list, K_list, os.path.join(f"{cfg.output_dir}/pose"), pipe_list, img_num, gt_pose_list)
-            
-    # print(add_list/ len(img_fn_list))
-    # print(prj_list/ len(img_fn_list))
-    # for i, pipe_name in enumerate(pipe_list):
-    #     save_path = os.path.join(f"{cfg.output_dir}", pipe_name, "pose")
-    #     with open(os.path.join(save_path, "gen6d_pretrain.pkl"), "wb") as f:
-    #         pickle.dump(predictions_list[i], f)
-
-# 3.049
-# 1.237
-# 2.491
-# 25.964
-# -223.582
-# 1.813
