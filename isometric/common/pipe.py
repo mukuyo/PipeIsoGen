@@ -170,6 +170,7 @@ class Pipe:
 
         return (f"Pipe Name: {self.__name}\n"
                 f"Number: {self.__num}\n"
+                f"Relationship: {self.__relationship}\n"
                 f"Vectors:\n{vectors_str}\n"
                 f"Rotation Matrix (R):\n{r_matrix_str}\n"
                 f"Translation Matrix (T):\n{t_matrix_str}\n"

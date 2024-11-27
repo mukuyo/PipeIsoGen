@@ -47,8 +47,12 @@ class DrawUtils:
             end_pipe.relationship = "forward"
         else:
             pipe_rad = pi/2 * -np.sign(dy)
-            start_pipe.relationship = "under"
-            end_pipe.relationship = "upper"
+            if np.sign(dy) < 0:
+                start_pipe.relationship = "upper"
+                end_pipe.relationship = "under"
+            else:
+                start_pipe.relationship = "under"
+                end_pipe.relationship = "upper"
 
         start_point = Vec3(start_pipe.point_cad.x, start_pipe.point_cad.y)
         end_point = Vec3(distance*cos(pipe_rad)+start_point.x, distance*sin(pipe_rad)+start_point.y)
@@ -93,20 +97,57 @@ class DrawUtils:
                                  end_point.y - 50*sin(pipe_rad) - 10*cos(symbol_rad)))
         
     def remain_pipe_line(self, start_pipe: Pipe):
-        # dx = end_pipe.point_3d.x - start_pipe.point_3d.x
-        # dy = end_pipe.point_3d.y - start_pipe.point_3d.y
-        # dz = end_pipe.point_3d.z - start_pipe.point_3d.z
+        # dx = start_pipe.axis_end_point_3d.x - start_pipe.point_3d.x
+        # dy = start_pipe.axis_end_point_3d.y - start_pipe.point_3d.y
+        keywords_in_relationship = ['forward', 'under', 'upper']
 
-        pipe_rad = -pi/2
-        distance = 400
-        start_point = Vec3(start_pipe.point_cad.x, start_pipe.point_cad.y)
-        end_point = Vec3(distance*cos(pipe_rad)+start_point.x, distance*sin(pipe_rad)+start_point.y)
+        for i, keyword in enumerate(keywords_in_relationship):
+            if keyword in start_pipe.relationship or (start_pipe.name == 'elbow' and i == 2):
+                continue
+            axis_end_point_3d = start_pipe.pose_matrix[:3, 3] + start_pipe.vectors[i] * self.__arrow_length
 
-        self.__msp.add_line(start_point, end_point)
+            dx = axis_end_point_3d[0] - start_pipe.pose_matrix[:3, 3][0]
+            dy = axis_end_point_3d[1] - start_pipe.pose_matrix[:3, 3][1]
 
-        self.__msp.add_line(Vec3(end_point.x - 10, end_point.y), Vec3(end_point.x + 10, end_point.y))
+        
+        # remain_keywords = [keyword for keyword in keywords_in_relationship if keyword not in start_pipe.relationship]
+        # print(remain_keywords)
+        # if start_pipe.name == 'elbow':
+        #     if np.sign(dy) == 0 and 'upper' in remain_keywords:
+        #         remain_keywords.remove('upper')
+        #     elif 'under' in remain_keywords:
+        #         remain_keywords.remove('under')
+        
+        # for keyword in remain_keywords:
+            
+            if keyword == 'forward':
+                pipe_rad = pi/6 * -np.sign(dy)
+                if dx < 0:
+                    pipe_rad = -pipe_rad + pi
+            elif keyword == 'under':
+                pipe_rad = -pi/2
+            else:
+                pipe_rad = pi/2
+            # else:
+                # pipe_rad = pi/2 * -np.sign(dy)
+            # if keyword == 'under':
+            #     pipe_rad = -pi/2
+            # elif keyword == 'forward':
+            #     pipe_rad = pi/6 * -np.sign(dy)
+            #     if dx < 0:
+            #         pipe_rad = -pipe_rad + pi
+            # else:
+            #     pipe_rad = pi/2
+                
+            distance = 300
+            start_point = Vec3(start_pipe.point_cad.x, start_pipe.point_cad.y)
+            end_point = Vec3(distance*cos(pipe_rad)+start_point.x, distance*sin(pipe_rad)+start_point.y)
 
-        self.__pipe_symbol(start_point, end_point, pipe_rad, remain_flag=True)
+            self.__msp.add_line(start_point, end_point)
+
+            self.__msp.add_line(Vec3(end_point.x - 10, end_point.y), Vec3(end_point.x + 10, end_point.y))
+
+            self.__pipe_symbol(start_point, end_point, pipe_rad, remain_flag=True)
         # self.__msp.add_aligned_dim(
         #     p1=start_point,
         #     p2=end_point,
