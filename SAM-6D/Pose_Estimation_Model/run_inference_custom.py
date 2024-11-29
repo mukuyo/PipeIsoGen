@@ -219,8 +219,8 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
 
         flag = np.zeros(4)
         loop_count = 0
-        while np.sum(flag) < 40:
-            flag = np.linalg.norm(tmp_cloud, axis=1) < (radius * (1.8 + loop_count * 1))
+        while np.sum(flag) < 50:
+            flag = np.linalg.norm(tmp_cloud, axis=1) < (radius * (1.6 + loop_count * 0.1))
             loop_count += 1.0
 
         choose = choose[flag]
@@ -298,6 +298,7 @@ def transform_rot(temp_gt_rots, k):
     elif k == 8:
         temp_gt_rots = temp_gt_rots[:, [0, 2, 1]]
         temp_gt_rots[:, 0] = -temp_gt_rots[:, 0]
+    
     temp_gt_poses[:, :3] = temp_gt_rots
 
     return temp_gt_poses
@@ -417,7 +418,7 @@ if __name__ == "__main__":
             gt_poses = []
 
             for j, pose in enumerate(gt_pose_list[i]):
-                pose[:, 3] = np.array([pose[:, 3][0], -pose[:, 3][1]-2, pose[:, 3][2]])
+                pose[:, 3] = np.array([pose[:, 3][0], -pose[:, 3][1] - 4, pose[:, 3][2]])
 
             for j, trans in enumerate(pred_trans):
                 min_dist = float('inf')
@@ -445,7 +446,7 @@ if __name__ == "__main__":
             for j in range(len(pred_trans)):
                 min_add = float('inf')
                 min_prj = float('inf')
-                for k in range(8):
+                for k in range(9):
                     temp_gt_poses = gt_poses[j].copy()
                     temp_gt_rots = gt_rot[j].copy()
 
@@ -471,6 +472,8 @@ if __name__ == "__main__":
                     #     print(temp_gt_poses[:, 3])
                     #     print(pred_rot[j])
                     #     print(pred_trans[j])
+                    if j == 5:
+                        print(f"Grot: {temp_gt_rots[:, :3]}, Trot: {pred_rot[j]}, Gtrans: {temp_gt_poses[:, 3]}, Ttrans: {pred_trans[j]}")
 
                     true_projection = project_points(model_points*1000, temp_gt_poses[:, :3], temp_gt_poses[:, 3], K)
                     pred_projection = project_points(model_points*1000, pred_rot[j], pred_trans[j], K)

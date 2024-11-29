@@ -14,7 +14,7 @@ lr_scheduler:
   warmup_iters: 1000
 
 model:
-  coarse_npoint: 192
+  coarse_npoint: 196
   fine_npoint: 2048
   feature_extraction:
     vit_type: vit_base
@@ -98,7 +98,7 @@ test_dataloader:
   drop_last     : False
   pin_memory    : False
 
-
-rd_seed: 11
+# 20
+rd_seed: 20
 training_epoch: 15
 iters_to_print: 50

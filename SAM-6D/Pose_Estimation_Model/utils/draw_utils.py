@@ -168,7 +168,7 @@ def draw_detections_all(image, pred_rot_list, pred_tran_list, model_points_list,
             imgpts_list.append(imgpts)
 
         for ind in range(num_pred_instances):
-            # if not(ind == 3):
+            # if not(ind == 5):
             #     continue
             transformed_bbox_3d = pred_rots[ind]@bbox_3d + pred_trans[ind][:,np.newaxis]
             projected_bbox = calculate_2d_projections(transformed_bbox_3d, intrinsics_list[i][ind])
