@@ -33,8 +33,7 @@ class Iso:
     
     def generate_iso(self) -> None:
         """Generate isometric"""
-        for _img_num, _ in enumerate(tqdm(glob.glob(self.__rgb_dir + "/*.png"))):
-            
+        for _img_num, _ in enumerate(glob.glob(self.__rgb_dir + "/*.png")):
             img_num = _img_num * 10
             self.__pipes: list[Pipe] = []
             pipe_count = 0

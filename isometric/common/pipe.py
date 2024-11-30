@@ -4,6 +4,7 @@ from numpy import ndarray
 from ezdxf.math import Vec3
 from math import degrees
 
+
 class Point:
     def __init__(self, x: int, y: int, z: int = 0):
         self.__x = x
@@ -105,7 +106,10 @@ class Pipe:
         self.__name = obj_name
         self.__num = number
         self.__pose_matrix = pose_matrix
+
         self.__vectors = []
+        self.__start_point_2d = []
+        self.__end_point_2d = []
 
         self.__r_matrix: ndarray = self.__pose_matrix[:, :3]
         self.__t_matrix: ndarray = self.__pose_matrix[:, 3:4]
@@ -119,8 +123,11 @@ class Pipe:
         self.__cam_matrix: ndarray = cam_matrix
 
         self.__relationship: list[str] = []
+        self.__remain_relationship: list[str] = []
 
         self.__rotate: Rotate = Rotate(0.0, 0.0, 0.0)
+
+        self.__arrow_length = 10
 
         self.__init_info()
 
@@ -134,14 +141,17 @@ class Pipe:
         self.__rotate.yaw = degrees(np.arctan2(self.__r_matrix[1, 0], self.__r_matrix[0, 0]))
 
         if self.__name == "elbow":
-            direction_list = [1, 2]
+            self.__direction_list = [1, 2]
         else:
-            direction_list = [1, 2, -2]
+            self.__direction_list = [1, 2, -2]
+        self.__direction_str = ['forward', 'under', 'upper']
+
+        self.__candidate_num: int = len(self.__direction_list)
         
-        self.__candidate_num: int = len(direction_list)
-        
-        for i, direction in enumerate(direction_list):
+        for i, direction in enumerate(self.__direction_list):
             self.__vectors.append(self.__pose_matrix[:3, 2] if direction == -2 else -self.__pose_matrix[:3, direction])
+
+        self.__decide_direction()
 
         with open(self.__args.cam_path, 'r') as f:
             cam_params = json.load(f)        
@@ -149,7 +159,50 @@ class Pipe:
 
         self.__project_to_2d()
 
+    def __decide_direction(self) -> None:
+        min_direction = 0
+        max_direction = 0
+        min_distance = float('inf')
+        max_distance = 0
+        
+        for i, vector in enumerate(self.__vectors):
+            translation = self.__pose_matrix[:3, 3]
+            
+            axis_end_point_3d = translation + vector * self.__arrow_length
 
+            start_point_3d = np.append(translation, 1)  # Center point after correction
+            end_point_3d = np.append(axis_end_point_3d, 1)  # Arrow tip
+            
+            # Transform using the camera matrix
+            start_point_2d_homogeneous = self.__cam_matrix @ start_point_3d[:3]
+            end_point_2d_homogeneous = self.__cam_matrix @ end_point_3d[:3]
+
+            # Normalize to convert to 2D coordinates
+            start_point_2d = (start_point_2d_homogeneous / start_point_2d_homogeneous[2])[:2]
+            end_point_2d = (end_point_2d_homogeneous / end_point_2d_homogeneous[2])[:2]
+
+            self.__start_point_2d.append((int(start_point_2d[0]), int(start_point_2d[1])))
+            self.__end_point_2d.append((int(end_point_2d[0]), int(end_point_2d[1])))
+
+            pixel_distance = start_point_2d[1] - end_point_2d[1]
+
+            if pixel_distance < min_distance:
+                min_direction = i
+                min_distance = pixel_distance
+            if pixel_distance > max_distance:
+                max_distance = pixel_distance
+                max_direction = i
+        
+        if self.__name == 'elbow' and min_direction == 0:
+            self.__direction_list = [2, 1]
+        
+        if self.__name == 'tee' and max_direction == 0:
+            self.__direction_str = ['upper', 'lforward', 'rforward']
+        elif self.__name == 'tee' and min_direction == 0:
+            self.__direction_str = ['under', 'rforward', 'lforward']
+        elif self.__name == 'tee' and min_direction == 2:
+            self.__direction_list = [1, -2, 2]
+                
     def __project_to_2d(self) -> None:
         projected_point = self.__cam_matrix @ self.__t_matrix
 
@@ -193,6 +246,14 @@ class Pipe:
     @property
     def vectors(self) -> list:
         return self.__vectors
+    
+    @property
+    def direction_list(self) -> list:
+        return self.__direction_list
+
+    @property
+    def direction_str(self) -> list:
+        return self.__direction_str
 
     @property
     def name(self) -> str:
@@ -201,6 +262,10 @@ class Pipe:
     @property
     def num(self) -> int:
         return self.__num
+    
+    @property
+    def rotate(self) -> Rotate:
+        return self.__rotate
     
     @property
     def pare_list(self) -> list[Pare]:
@@ -235,12 +300,28 @@ class Pipe:
         self.__point_3d = point_3d
 
     @property
+    def start_point_2d(self) -> list[tuple[int, int]]:
+        return self.__start_point_2d
+
+    @property
+    def end_point_2d(self) -> list[tuple[int, int]]:
+        return self.__end_point_2d
+    
+    @property
     def relationship(self) -> list[str]:
         return self.__relationship
     
     @relationship.setter
-    def relationship(self, relationship: str) -> None:
-        self.__relationship.append(relationship)
+    def relationship(self, relationship: list[str]) -> None:
+        self.__relationship = relationship
+
+    @property
+    def remain_relationship(self) -> list[str]:
+        return self.__remain_relationship
+    
+    @remain_relationship.setter
+    def remain_relationship(self, remain_relationship: list[str]) -> None:
+        self.__remain_relationship = remain_relationship
 
     @property
     def candidate_num(self) -> int:

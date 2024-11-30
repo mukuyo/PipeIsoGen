@@ -43,16 +43,8 @@ class DrawUtils:
             pipe_rad = pi/6 * -np.sign(dy)
             if dx < 0:
                 pipe_rad = -pipe_rad + pi
-            start_pipe.relationship = "forward"
-            end_pipe.relationship = "forward"
         else:
             pipe_rad = pi/2 * -np.sign(dy)
-            if np.sign(dy) < 0:
-                start_pipe.relationship = "upper"
-                end_pipe.relationship = "under"
-            else:
-                start_pipe.relationship = "under"
-                end_pipe.relationship = "upper"
 
         start_point = Vec3(start_pipe.point_cad.x, start_pipe.point_cad.y)
         end_point = Vec3(distance*cos(pipe_rad)+start_point.x, distance*sin(pipe_rad)+start_point.y)
@@ -89,21 +81,17 @@ class DrawUtils:
                                  end_point.y - 50*sin(pipe_rad) - 10*cos(symbol_rad)))
         
     def remain_pipe_line(self, start_pipe: Pipe):
-        keywords_in_relationship = ['forward', 'under', 'upper']
-
-        for i, keyword in enumerate(keywords_in_relationship):
-            if keyword in start_pipe.relationship or (start_pipe.name == 'elbow' and i == 2):
-                continue
+        for i, relationship in enumerate(start_pipe.remain_relationship):
             axis_end_point_3d = start_pipe.pose_matrix[:3, 3] + start_pipe.vectors[i] * self.__arrow_length
 
             dx = axis_end_point_3d[0] - start_pipe.pose_matrix[:3, 3][0]
             dy = axis_end_point_3d[1] - start_pipe.pose_matrix[:3, 3][1]
             
-            if keyword == 'forward':
+            if relationship == 'rforward':
                 pipe_rad = pi/6 * -np.sign(dy)
-                if dx < 0:
-                    pipe_rad = -pipe_rad + pi
-            elif keyword == 'under':
+            elif relationship == 'lforward':
+                pipe_rad = pi/6 * np.sign(dy) + pi
+            elif relationship == 'under':
                 pipe_rad = -pi/2
             else:
                 pipe_rad = pi/2
@@ -122,38 +110,15 @@ class DrawUtils:
         self.__image = cv2.imread(os.path.join(self.__args.img_dir, f"rgb/frame{str(img_num)}.png"))
         
         for j, pipe in enumerate(pipes):
-            for i, vector in enumerate(pipe.vectors):
-                if i == 0:
-                    color = (255, 0, 0)  # Green color
-                elif i == 1:
-                    color = (0, 255, 0)
-                else:
-                    color = (0, 0, 255)
+            for i, start_point_2d in enumerate(pipe.start_point_2d):
+                color = [(255, 0, 0), (0, 255, 0), (0, 0, 255)][i if i < 2 else 2]
 
-                translation = pipe.pose_matrix[:3, 3]
-                # translation = np.array([15.467042922973633, -38.80397033691406, -276.7315979003906])
-
-                axis_end_point_3d = translation + vector * self.__arrow_length
-
-                # Extend to the camera coordinate system to convert 3D coordinates to 2D image coordinates
-                start_point_3d = np.append(translation, 1)  # Center point after correction
-                end_point_3d = np.append(axis_end_point_3d, 1)  # Arrow tip
-                
-                # Transform using the camera matrix
-                start_point_2d_homogeneous = self.__camera_matrix @ start_point_3d[:3]
-                end_point_2d_homogeneous = self.__camera_matrix @ end_point_3d[:3]
-
-                # Normalize to convert to 2D coordinates
-                start_point_2d = (start_point_2d_homogeneous / start_point_2d_homogeneous[2])[:2]
-                end_point_2d = (end_point_2d_homogeneous / end_point_2d_homogeneous[2])[:2]
-                
-                # Convert to image coordinates
                 start_point = (int(start_point_2d[0]), int(start_point_2d[1]))
-                
-                end_point = (int(end_point_2d[0]), int(end_point_2d[1]))
+                end_point = (int(pipe.end_point_2d[i][0]), int(pipe.end_point_2d[i][1]))
+
                 if j == 0:
-                    start_point = (int(start_point_2d[0]), int(start_point_2d[1]-10))
-                    end_point = (int(end_point_2d[0]), int(end_point_2d[1]-10))
+                    start_point = (int(start_point[0]), int(start_point[1]-10))
+                    end_point = (int(end_point[0]), int(end_point[1]-10))
 
                 # Draw the center of the object for debugging (red dot)
                 cv2.circle(self.__image, start_point, 2, color, -1)  # Red dot

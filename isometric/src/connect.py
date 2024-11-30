@@ -108,10 +108,15 @@ class Connect:
         
         for pipe in pipes:
             pare_list = []
+            relationship = []
+            remain = []
             translation = pipe.pose_matrix[:3, 3]  # パイプの位置ベクトル
-            for vector in pipe.vectors:
+            for i, direction in enumerate(pipe.direction_list):
                 pare_num = -1
                 distance_min = float('inf')
+                
+                vector = pipe.pose_matrix[:3, 2] if direction == -2 else -pipe.pose_matrix[:3, direction]
+                
                 for other_pipe in pipes:
                     if pipe.num == other_pipe.num:
                         continue
@@ -134,4 +139,16 @@ class Connect:
                     
                 if not distance_min == float('inf') and not pare_num == -1:
                     pare_list.append(Pare(pare_num))
+                    relationship.append(pipe.direction_str[i])
+                else:
+                    remain.append(pipe.direction_str[i])
+                    # if direction == 1:
+                    #     relationship.append('forward')
+                    # elif direction == 2:
+                    #     relationship.append('under')
+                    # else:
+                    #     relationship.append('upper')
+
             pipe.pare_list = pare_list
+            pipe.relationship = relationship
+            pipe.remain_relationship = remain
