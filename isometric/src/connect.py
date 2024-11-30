@@ -6,7 +6,7 @@ import math
 
 from isometric.common.pipe import Pipe, Pare
 
-from pyrealsense2 import rs2_deproject_pixel_to_point, intrinsics, distortion  # pylint: disable = no-name-in-module
+# from pyrealsense2 import rs2_deproject_pixel_to_point, intrinsics, distortion  # pylint: disable = no-name-in-module
 
 class Connect:
     """Calculate Pipe Connection"""
@@ -18,16 +18,6 @@ class Connect:
         with open(self.__args.cam_path, 'r') as f:
             cam_params = json.load(f)        
         camera_matrix = np.array(cam_params["cam_K"]).reshape(3, 3)
-
-        self.__intrinsics = intrinsics()
-        self.__intrinsics.width = 640  # depth image width
-        self.__intrinsics.height = 480  # depth image height
-        self.__intrinsics.fx = camera_matrix[0, 0]   # fx
-        self.__intrinsics.fy = camera_matrix[1, 1]   # fy
-        self.__intrinsics.ppx = camera_matrix[0, 2]  # cx
-        self.__intrinsics.ppy = camera_matrix[1, 2]  # cy
-        self.__intrinsics.model = distortion.none
-        self.__intrinsics.coeffs = [0.0, 0.0, 0.0, 0.0, 0.0]
 
     def find_first_pipe(self, pipes: list[Pipe]):
         """Compute piping relationship and find the first pipe"""
@@ -52,14 +42,7 @@ class Connect:
     
     def get_distance(self, pipe1: Pipe, pipe2: Pipe, depth_path) -> float:
         """compute distance between two pipes"""
-        depth_image = cv2.imread(depth_path, cv2.IMREAD_ANYDEPTH)
-        depth1 = float(depth_image[int(pipe1.point_2d.y), int(pipe1.point_2d.x)])
-        depth2 = float(depth_image[int(pipe2.point_2d.y), int(pipe2.point_2d.x)])
-
-        point1 = rs2_deproject_pixel_to_point(self.__intrinsics, [pipe1.point_2d.x, pipe1.point_2d.y], depth1)
-        point2 = rs2_deproject_pixel_to_point(self.__intrinsics, [pipe2.point_2d.x, pipe2.point_2d.y], depth2)
-
-        distance = np.linalg.norm(np.array(point1) - np.array(point2)) * 10.0
+        distance = np.linalg.norm(pipe1.t_matrix - pipe2.t_matrix) * 10.0
         return distance
     
     def traverse_pipes(self, pipes: list[Pipe], pipe: Pipe, visited=None):
@@ -142,12 +125,6 @@ class Connect:
                     relationship.append(pipe.direction_str[i])
                 else:
                     remain.append(pipe.direction_str[i])
-                    # if direction == 1:
-                    #     relationship.append('forward')
-                    # elif direction == 2:
-                    #     relationship.append('under')
-                    # else:
-                    #     relationship.append('upper')
 
             pipe.pare_list = pare_list
             pipe.relationship = relationship

@@ -22,10 +22,15 @@ class DrawUtils:
 
         self.__arrow_length = 10
 
+        self.__symble_size = 12
+        self.__distance_symbol = 65
+
+        self.__remain_distance = 800
+
         self.__doc = ezdxf.new()
 
         dimstyle = self.__doc.dimstyles.new('custom_dimstyle')
-        dimstyle.dxf.dimtxt = 17
+        dimstyle.dxf.dimtxt = 40
         dimstyle.dxf.dimdec = 0
         dimstyle.dxf.dimasz = 30
         dimstyle.dxf.dimblk = "OPEN"
@@ -68,17 +73,17 @@ class DrawUtils:
         if not abs(symbol_rad) == pi/2:
             symbol_rad = 0
 
-        self.__msp.add_line(Vec3(start_point.x + 50*cos(pipe_rad) + 10*sin(symbol_rad), 
-                                 start_point.y + 50*sin(pipe_rad) + 10*cos(symbol_rad)), 
-                            Vec3(start_point.x + 50*cos(pipe_rad) - 10*sin(symbol_rad), 
-                                 start_point.y + 50*sin(pipe_rad) - 10*cos(symbol_rad)))
+        self.__msp.add_line(Vec3(start_point.x + self.__distance_symbol*cos(pipe_rad) + self.__symble_size*sin(symbol_rad), 
+                                 start_point.y + self.__distance_symbol*sin(pipe_rad) + self.__symble_size*cos(symbol_rad)), 
+                            Vec3(start_point.x + self.__distance_symbol*cos(pipe_rad) - self.__symble_size*sin(symbol_rad), 
+                                 start_point.y + self.__distance_symbol*sin(pipe_rad) - self.__symble_size*cos(symbol_rad)))
         if remain_flag:
             return
         
-        self.__msp.add_line(Vec3(end_point.x - 50*cos(pipe_rad) + 10*sin(symbol_rad), 
-                                 end_point.y - 50*sin(pipe_rad) + 10*cos(symbol_rad)), 
-                            Vec3(end_point.x - 50*cos(pipe_rad) - 10*sin(symbol_rad), 
-                                 end_point.y - 50*sin(pipe_rad) - 10*cos(symbol_rad)))
+        self.__msp.add_line(Vec3(end_point.x - self.__distance_symbol*cos(pipe_rad) + self.__symble_size*sin(symbol_rad), 
+                                 end_point.y - self.__distance_symbol*sin(pipe_rad) + self.__symble_size*cos(symbol_rad)), 
+                            Vec3(end_point.x - self.__distance_symbol*cos(pipe_rad) - self.__symble_size*sin(symbol_rad), 
+                                 end_point.y - self.__distance_symbol*sin(pipe_rad) - self.__symble_size*cos(symbol_rad)))
         
     def remain_pipe_line(self, start_pipe: Pipe):
         for i, relationship in enumerate(start_pipe.remain_relationship):
@@ -96,9 +101,8 @@ class DrawUtils:
             else:
                 pipe_rad = pi/2
                 
-            distance = 300
             start_point = Vec3(start_pipe.point_cad.x, start_pipe.point_cad.y)
-            end_point = Vec3(distance*cos(pipe_rad)+start_point.x, distance*sin(pipe_rad)+start_point.y)
+            end_point = Vec3(self.__remain_distance*cos(pipe_rad)+start_point.x, self.__remain_distance*sin(pipe_rad)+start_point.y)
 
             self.__msp.add_line(start_point, end_point)
 
