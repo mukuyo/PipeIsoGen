@@ -38,7 +38,7 @@ class Iso:
             self.__pipes: list[Pipe] = []
             pipe_count = 0
             for obj_name in self.__args.objects_name:
-                save_dir = os.path.join(self.__args.output_dir, "isometric", str(img_num))
+                save_dir = os.path.join(self.__args.output_dir, "isometric")
                 os.makedirs(save_dir, exist_ok=True)
                 pose_list = np.load(os.path.join(os.path.join(self.__args.output_dir, "pose", obj_name, str(img_num), "pose.npy")))
                 for pose_matrix in pose_list:
@@ -49,6 +49,7 @@ class Iso:
             self.__connect.compute_piping_relationship(self.__pipes)
             first_pipe = self.__connect.find_first_pipe(self.__pipes)
             trans_pipes = self.__connect.traverse_pipes(self.__pipes, first_pipe)
+            
             for trance in trans_pipes:
                 start_pipe_num = trance[0]
                 end_pipe_num = trance[1]

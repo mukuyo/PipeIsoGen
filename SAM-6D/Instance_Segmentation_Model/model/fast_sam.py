@@ -175,6 +175,7 @@ class CustomYOLO(YOLO):
         # self.predictor = yolo.v8.segment.SegmentationPredictor(
         #     overrides=self.overrides, _callbacks=self.callbacks
         # )
+
         self.predictor = YOLO()
         self.not_setup = True
         self.selected_device = selected_device
@@ -246,7 +247,7 @@ class FastSAM(object):
     def generate_masks(self, image) -> List[Dict[str, Any]]:
         # if self.segmentor_width_size is not None:
         orig_size = image.shape[:2]
-        detections = self.model.predict(image, conf=0.3)
+        detections = self.model.predict(image, conf=0.03)
 
         if detections[0].masks is None:
             return None
@@ -259,6 +260,7 @@ class FastSAM(object):
             "masks": masks.to(self.current_device),
             "boxes": boxes.to(self.current_device),
         }
+
         # if self.segmentor_width_size is not None:
         mask_data = self.postprocess_resize(mask_data, orig_size)
         return mask_data

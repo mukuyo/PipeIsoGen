@@ -48,24 +48,24 @@ def get_3d_bbox(scale, shift = 0):
     bbox_3d = bbox_3d.transpose()
     return bbox_3d
 
-def get_bbox_center_coordinate(bbox_coordinates):
+
+def get_bbox_center_coordinate(obj_name, bbox_coordinates, pred_rot, pred_trans):
     min_coords = np.min(bbox_coordinates, axis=1)
     max_coords = np.max(bbox_coordinates, axis=1)
 
     center_corrected = (min_coords + max_coords) / 2
-
     return center_corrected
 
 def draw_3d_bbox(img, imgpts, color, size=2, center_color=(255, 0, 0)):
     imgpts = np.int32(imgpts).reshape(-1, 2)
 
     # draw ground layer in darker color
-    color_ground = (int(color[0] * 0.3), int(color[1] * 0.3), int(color[2] * 0.3))
+    color_ground = (int(color[0] * 1.0), int(color[1] * 1.0), int(color[2] * 1.0))
     for i, j in zip([4, 5, 6, 7],[5, 7, 4, 6]):
         img = cv2.line(img, tuple(imgpts[i]), tuple(imgpts[j]), color_ground, size)
 
     # draw pillars in blue color
-    color_pillar = (int(color[0]*0.6), int(color[1]*0.6), int(color[2]*0.6))
+    color_pillar = (int(color[0]*1.0), int(color[1]*1.0), int(color[2]*1.0))
     for i, j in zip(range(4),range(4,8)):
         img = cv2.line(img, tuple(imgpts[i]), tuple(imgpts[j]), color_pillar, size)
 
@@ -152,15 +152,21 @@ def draw_detections_all(image, pred_rot_list, pred_tran_list, model_points_list,
         combined_list = []
         for ind in range(num_pred_instances):
             # draw 3d bounding box
+            if obj_name == "tee":
+                _trans = np.dot(pred_rots[ind], np.array([0, 2.4, 0])) + pred_trans[ind]
+            else:
+                _trans = np.dot(pred_rots[ind], np.array([0, 3.0, 3.0])) + pred_trans[ind]
+            _transformed_bbox_3d = pred_rots[ind]@bbox_3d + _trans[:,np.newaxis]
             transformed_bbox_3d = pred_rots[ind]@bbox_3d + pred_trans[ind][:,np.newaxis]
             projected_bbox = calculate_2d_projections(transformed_bbox_3d, intrinsics_list[i][ind])
             pcl_image, imgpts = draw_3d_bbox(pcl_image, projected_bbox, color)
+            
             # draw point cloud
             transformed_pts_3d = pred_rots[ind]@pts_3d + pred_trans[ind][:,np.newaxis]
             projected_pts = calculate_2d_projections(transformed_pts_3d, intrinsics_list[i][ind])
             pcl_image = draw_3d_pts(pcl_image, projected_pts, color)
 
-            center_coordinate = get_bbox_center_coordinate(transformed_bbox_3d)
+            center_coordinate = get_bbox_center_coordinate(obj_name, _transformed_bbox_3d, pred_rots[ind], pred_trans[ind])
             trans_reshaped = center_coordinate.reshape(-1, 1)
             combined_arr = np.hstack((pred_rots[ind], trans_reshaped))
             combined_list.append(combined_arr)
@@ -170,13 +176,15 @@ def draw_detections_all(image, pred_rot_list, pred_tran_list, model_points_list,
         for ind in range(num_pred_instances):
             # if not(ind == 5):
             #     continue
-            transformed_bbox_3d = pred_rots[ind]@bbox_3d + pred_trans[ind][:,np.newaxis]
-            projected_bbox = calculate_2d_projections(transformed_bbox_3d, intrinsics_list[i][ind])
-            gt_image, _ = draw_3d_bbox(gt_image, projected_bbox, (0, 0, 255))
-
             _transformed_bbox_3d = gt_pose_list[i][ind][:, :3]@bbox_3d + gt_pose_list[i][ind][:, 3].reshape(-1, 1)
             _projected_bbox = calculate_2d_projections(_transformed_bbox_3d, intrinsics_list[i][ind])
-            gt_image, _ = draw_3d_bbox(gt_image, _projected_bbox, (0, 255, 0))
+            gt_image, _ = draw_3d_bbox(gt_image, _projected_bbox, (220, 50, 0))
+            
+            transformed_bbox_3d = pred_rots[ind]@bbox_3d + pred_trans[ind][:,np.newaxis]
+            projected_bbox = calculate_2d_projections(transformed_bbox_3d, intrinsics_list[i][ind])
+            gt_image, _ = draw_3d_bbox(gt_image, projected_bbox, (0, 50, 250))
+
+
 
         np.save(os.path.join(save_dir, obj_name, img_num, "pose.npy"), np.array(combined_list))
         np.save(os.path.join(save_dir, obj_name, img_num, "3d_bbox_projected.npy"), imgpts_list)
@@ -192,7 +200,6 @@ def draw_detections(image, pred_rots, pred_trans, model_points, intrinsics, gt_p
     bbox_3d = get_3d_bbox(scale)
     gt_bbox_3d = get_3d_bbox(scale)
 
-    combined_list = []
     print("num_pred_instances:", num_pred_instances)
     for ind in range(num_pred_instances):
         color=(0, 0, 255)
@@ -205,5 +212,4 @@ def draw_detections(image, pred_rots, pred_trans, model_points, intrinsics, gt_p
         _projected_bbox = calculate_2d_projections(_transformed_bbox_3d, intrinsics[ind])
         draw_image_bbox, _ = draw_3d_bbox(draw_image_bbox, _projected_bbox, color)
 
-    np.save(os.path.join(save_dir, "pose.npy"), np.array(combined_list))
     return draw_image_bbox

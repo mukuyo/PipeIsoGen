@@ -98,7 +98,7 @@ test_dataloader:
   drop_last     : False
   pin_memory    : False
 
-# 20
+# 35
 rd_seed: 20
 training_epoch: 15
 iters_to_print: 50

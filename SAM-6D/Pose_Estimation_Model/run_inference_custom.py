@@ -205,7 +205,7 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
         mask = cocomask.decode(rle)
         mask = np.logical_and(mask > 0, whole_depth > 0)
         
-        if np.sum(mask) > 32:
+        if np.sum(mask) > 400:
             bbox = get_bbox(mask)
             y1, y2, x1, x2 = bbox
         else:
@@ -219,10 +219,13 @@ def get_test_data(rgb_path, depth_path, cam_path, cad_path, seg_path, det_score_
 
         flag = np.zeros(4)
         loop_count = 0
-        while np.sum(flag) < 50:
-            flag = np.linalg.norm(tmp_cloud, axis=1) < (radius * (1.6 + loop_count * 0.1))
-            loop_count += 1.0
 
+        # while np.sum(flag) < 400:
+        # flag = np.linalg.norm(tmp_cloud, axis=1) < (radius * (1.8 + loop_count * 1.0))
+        
+        while np.sum(flag) < 400:
+            flag = np.linalg.norm(tmp_cloud, axis=1) < (radius * (1.12 + loop_count * 0.4))
+            loop_count += 1.0
         choose = choose[flag]
         cloud = cloud[flag]
 
@@ -304,7 +307,6 @@ def transform_rot(temp_gt_rots, k):
     return temp_gt_poses
     
 if __name__ == "__main__":
-
     cfg, pipe_list, img_dir, cad_dir, cad_type = init()
     
     np.random.seed(cfg.rd_seed)
@@ -418,7 +420,10 @@ if __name__ == "__main__":
             gt_poses = []
 
             for j, pose in enumerate(gt_pose_list[i]):
-                pose[:, 3] = np.array([pose[:, 3][0], -pose[:, 3][1] - 4, pose[:, 3][2]])
+                if i == 1:
+                    pose[:, 3] = np.array([pose[:, 3][0], -pose[:, 3][1] - 4, pose[:, 3][2]])
+                else:
+                    pose[:, 3] = np.array([pose[:, 3][0], -pose[:, 3][1]-2, pose[:, 3][2]])
 
             for j, trans in enumerate(pred_trans):
                 min_dist = float('inf')
@@ -472,8 +477,8 @@ if __name__ == "__main__":
                     #     print(temp_gt_poses[:, 3])
                     #     print(pred_rot[j])
                     #     print(pred_trans[j])
-                    if j == 5:
-                        print(f"Grot: {temp_gt_rots[:, :3]}, Trot: {pred_rot[j]}, Gtrans: {temp_gt_poses[:, 3]}, Ttrans: {pred_trans[j]}")
+                    # if j == 5:
+                    #     print(f"Grot: {temp_gt_rots[:, :3]}, Trot: {pred_rot[j]}, Gtrans: {temp_gt_poses[:, 3]}, Ttrans: {pred_trans[j]}")
 
                     true_projection = project_points(model_points*1000, temp_gt_poses[:, :3], temp_gt_poses[:, 3], K)
                     pred_projection = project_points(model_points*1000, pred_rot[j], pred_trans[j], K)

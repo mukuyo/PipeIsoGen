@@ -1,103 +1,10 @@
 import json
 import numpy as np
 from numpy import ndarray
-from ezdxf.math import Vec3
 from math import degrees
-
-
-class Point:
-    def __init__(self, x: int, y: int, z: int = 0):
-        self.__x = x
-        self.__y = y
-        self.__z = z
-
-    def __str__(self) -> str:
-        return f"Point(x={self.__x}, y={self.__y}, z={self.__z})"
-
-    @property
-    def x(self) -> int:
-        return self.__x
-    
-    @x.setter
-    def x(self, x: int) -> None:
-        self.__x = x
-
-    @property
-    def y(self) -> int:
-        return self.__y
-    
-    @y.setter
-    def y(self, y: int) -> None:
-        self.__y = y
-
-    @property
-    def z(self) -> int:
-        return self.__z
-    
-    @z.setter
-    def z(self, z: int) -> None:
-        self.__z = z
-
-
-class Rotate:
-    def __init__(self, roll: int, pitch: int, yaw: int = 0):
-        self.__roll = roll
-        self.__pitch = pitch
-        self.__yaw = yaw
-
-    def __str__(self) -> str:
-        return f"Point(roll={self.__roll}, pitch={self.__pitch}, yaw={self.__yaw})"
-
-    @property
-    def roll(self) -> int:
-        return self.__roll
-    
-    @roll.setter
-    def roll(self, roll: int) -> None:
-        self.__roll = roll
-
-    @property
-    def pitch(self) -> int:
-        return self.__pitch
-    
-    @pitch.setter
-    def pitch(self, pitch: int) -> None:
-        self.__pitch = pitch
-
-    @property
-    def yaw(self) -> int:
-        return self.__yaw
-    
-    @yaw.setter
-    def yaw(self, yaw: int) -> None:
-        self.__yaw = yaw
-
-
-class Pare:
-    def __init__(self, num: int, distance: float = 0.0):
-        self.__num: int = num
-        self.__distance: float = distance
-
-    def __str__(self) -> str:
-        return (f"Pare(num: {self.__num}, "
-                f"distance: {self.__distance:.2f})")
-    
-    @property
-    def num(self) -> int:
-        return self.__num
-    
-    @num.setter
-    def num(self, num: int):
-        self.__num = num
-
-    @property
-    def distance(self) -> float:
-        return self.__distance
-    
-    @distance.setter
-    def distance(self, distance: float) -> None:
-        self.__distance = distance
-
+from .rotate import Rotate
+from .pare import Pare
+from .point import Point
 
 class Pipe:
     def __init__(self, args, logger, obj_name, number, pose_matrix: ndarray, cam_matrix: ndarray) -> None:
@@ -126,6 +33,8 @@ class Pipe:
         self.__remain_relationship: list[str] = []
 
         self.__rotate: Rotate = Rotate(0.0, 0.0, 0.0)
+
+        self.__is_first: bool = False
 
         self.__arrow_length = 10
 
@@ -162,8 +71,9 @@ class Pipe:
     def __decide_direction(self) -> None:
         min_direction = 0
         max_direction = 0
-        min_distance = float('inf')
-        max_distance = 0
+        _max_direction = 0
+
+        pixel_distance_list = []
         
         for i, vector in enumerate(self.__vectors):
             translation = self.__pose_matrix[:3, 3]
@@ -186,18 +96,24 @@ class Pipe:
 
             pixel_distance = start_point_2d[1] - end_point_2d[1]
 
-            if pixel_distance < min_distance:
-                min_direction = i
-                min_distance = pixel_distance
-            if pixel_distance > max_distance:
-                max_distance = pixel_distance
-                max_direction = i
+            pixel_distance_list.append((i, pixel_distance))
+        
+        pixel_distance_list.sort(key=lambda x: x[1])
+        min_direction = pixel_distance_list[0][0]
+        max_direction = pixel_distance_list[-1][0]
+        _max_direction = pixel_distance_list[-2][0]
         
         if self.__name == 'elbow' and min_direction == 0:
             self.__direction_list = [2, 1]
         
         if self.__name == 'tee' and max_direction == 0:
-            self.__direction_str = ['upper', 'lforward', 'rforward']
+            
+            if _max_direction == 2:
+                self.__direction_str = ['upper', 'rforward', 'lforward']
+                self.__direction_list = [1, -2, 2]
+            elif _max_direction == 1:
+                self.__direction_str = ['upper', 'lforward', 'rforward']
+                self.__direction_list = [1, 2, -2]
         elif self.__name == 'tee' and min_direction == 0:
             self.__direction_str = ['under', 'rforward', 'lforward']
         elif self.__name == 'tee' and min_direction == 2:
@@ -266,6 +182,14 @@ class Pipe:
     @property
     def rotate(self) -> Rotate:
         return self.__rotate
+    
+    @property
+    def is_first(self) -> bool:
+        return self.__is_first
+    
+    @is_first.setter
+    def is_first(self, is_first: bool) -> None:
+        self.__is_first = is_first
     
     @property
     def pare_list(self) -> list[Pare]:

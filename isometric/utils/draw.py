@@ -25,9 +25,10 @@ class DrawUtils:
         self.__symble_size = 12
         self.__distance_symbol = 65
 
-        self.__remain_distance = 800
+        self.__remain_distance = 900
 
         self.__doc = ezdxf.new()
+        self.__doc_no_size = ezdxf.new()
 
         dimstyle = self.__doc.dimstyles.new('custom_dimstyle')
         dimstyle.dxf.dimtxt = 40
@@ -38,6 +39,7 @@ class DrawUtils:
         dimstyle.dxf.dimclre = 3
         
         self.__msp = self.__doc.modelspace()
+        self.__msp_no_size = self.__doc_no_size.modelspace()
 
     def pipe_line(self, start_pipe: Pipe, end_pipe: Pipe, distance: float):
         dx = end_pipe.point_3d.x - start_pipe.point_3d.x
@@ -55,6 +57,7 @@ class DrawUtils:
         end_point = Vec3(distance*cos(pipe_rad)+start_point.x, distance*sin(pipe_rad)+start_point.y)
 
         self.__msp.add_line(start_point, end_point)
+        self.__msp_no_size.add_line(start_point, end_point)
 
         self.__pipe_symbol(start_point, end_point, pipe_rad)
 
@@ -87,15 +90,17 @@ class DrawUtils:
         
     def remain_pipe_line(self, start_pipe: Pipe):
         for i, relationship in enumerate(start_pipe.remain_relationship):
+            if start_pipe.is_first is False and start_pipe.point_cad.x == 0 and start_pipe.point_cad.y == 0:
+                continue
             axis_end_point_3d = start_pipe.pose_matrix[:3, 3] + start_pipe.vectors[i] * self.__arrow_length
 
             dx = axis_end_point_3d[0] - start_pipe.pose_matrix[:3, 3][0]
             dy = axis_end_point_3d[1] - start_pipe.pose_matrix[:3, 3][1]
             
-            if relationship == 'rforward':
-                pipe_rad = pi/6 * -np.sign(dy)
-            elif relationship == 'lforward':
+            if relationship == 'lforward':
                 pipe_rad = pi/6 * np.sign(dy) + pi
+            elif relationship == 'rforward':
+                pipe_rad = pi/6 * -np.sign(dy) + pi
             elif relationship == 'under':
                 pipe_rad = -pi/2
             else:
@@ -105,6 +110,7 @@ class DrawUtils:
             end_point = Vec3(self.__remain_distance*cos(pipe_rad)+start_point.x, self.__remain_distance*sin(pipe_rad)+start_point.y)
 
             self.__msp.add_line(start_point, end_point)
+            self.__msp_no_size.add_line(start_point, end_point)
 
             self.__msp.add_line(Vec3(end_point.x - 10, end_point.y), Vec3(end_point.x + 10, end_point.y))
 
@@ -147,7 +153,8 @@ class DrawUtils:
         cv2.imwrite(save_path, self.__image)
 
     def save_dxf(self, img_num) -> None:
-        self.__doc.saveas(os.path.join(self.__args.output_dir, "isometric", str(img_num), "pipe.dxf"))
+        self.__doc.saveas(os.path.join(self.__args.output_dir, "isometric", "pipe.dxf"))
+        self.__doc_no_size.saveas(os.path.join(self.__args.output_dir, "isometric", "pipe_no_size.dxf"))
 
     def plot_vectors_3d(self) -> None:
         """Plot vectors in 3D space with proper origins"""
